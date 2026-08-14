@@ -32,7 +32,13 @@ implicit:
   # padahal penolakan input memang hasil yang diharapkan.
   ui_expected:
     - id: validasi_form
-      note: "validasi input — justru bukti app menolak nilai salah"
+      menandakan: penolakan
+      note: >-
+        validasi input — justru bukti app menolak nilai salah.
+        `menandakan: penolakan` dibaca oleh formtest.classify(): hanya grup
+        INI yang boleh disimpulkan sebagai "nilai ditolak". Empty state dan
+        pesan izin di bawah juga `ui_expected`, tapi tidak mengatakan apa pun
+        tentang nilai yang baru diketik.
       patterns:
         - "^Nomor KTP harus 16 digit$"
         - "^Nomor KTP tidak boleh kosong$"
@@ -64,6 +70,7 @@ implicit:
         - "^Profil sudah pernah dilengkapi\\.$"
 
     - id: sukses
+      menandakan: keberhasilan
       note: "konfirmasi keberhasilan; `Notifikasi terkirim!` adalah PASS Test Push"
       patterns:
         - "^Notifikasi terkirim!$"
@@ -215,6 +222,7 @@ implicit:
 fields:
   ktp:
     label: "Nomor KTP"
+    contoh_valid: "3273010101900001"   # placeholder: "Contoh: 3273 0101 0190 0001 (16 digit)"
     type: numeric
     length:
       exact: 16
@@ -226,6 +234,7 @@ fields:
 
   sim_number:
     label: "Nomor SIM"
+    contoh_valid: "1301012345678"      # placeholder: "Contoh: 1301012345678"
     type: numeric
     required: true
     note: >-
@@ -237,6 +246,7 @@ fields:
 
   sim_expiry:
     label: "Akhir Berlaku SIM"
+    contoh_valid: "31/12/2027"         # placeholder: "Contoh: 31/12/2027"
     type: date
     format: "%d/%m/%Y"
     must_be_future: true
@@ -250,6 +260,7 @@ fields:
 
   nama:
     label: "Nama Sopir"
+    contoh_valid: "Budi Santoso"       # placeholder: "Contoh: Budi Santoso"
     type: text
     required: true
     note: >-
@@ -268,6 +279,7 @@ fields:
 
   alamat:
     label: "Alamat"
+    contoh_valid: "Jl. Perjuangan No. 12, RT 03/RW 05, Surabaya"
     type: text
     required: true
     note: "hilang dari v1 padahal wajib (bertanda * di form) dan ada di DB (kolom address)"

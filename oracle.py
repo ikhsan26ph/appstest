@@ -92,32 +92,51 @@ class Oracle:
             return Case(field, value, ok, why)
 
         # --- batas panjang -------------------------------------------
+        # nilai dibangun lewat _sized() supaya prefix wajib ikut terpasang:
+        # kasus panjang harus menguji PANJANG saja, tidak sekalian melanggar
+        # aturan prefix — kalau tidak, penolakan app jadi tidak bisa dibaca
+        # sebabnya, dan kasus "panjang tepat" malah ditandai valid padahal
+        # nilainya sendiri tidak sah.
         if "exact" in length:
             n = length["exact"]
-            body = self._filler(ftype)
-            yield case(body * n, True, f"panjang tepat {n}")
-            yield case(body * (n - 1), False, f"kurang 1 dari {n}")
-            yield case(body * (n + 1), False, f"lebih 1 dari {n}")
-            yield case(body * (n + 3), False, f"jauh melebihi {n}")
+            yield case(self._sized(spec, ftype, n), True, f"panjang tepat {n}")
+            yield case(self._sized(spec, ftype, n - 1), False, f"kurang 1 dari {n}")
+            yield case(self._sized(spec, ftype, n + 1), False, f"lebih 1 dari {n}")
+            yield case(self._sized(spec, ftype, n + 3), False, f"jauh melebihi {n}")
         else:
             lo, hi = length.get("min"), length.get("max")
-            body = self._filler(ftype)
             if lo:
-                yield case(body * lo, True, f"panjang minimum {lo}")
-                yield case(body * (lo - 1), False, f"di bawah minimum {lo}")
+                yield case(self._sized(spec, ftype, lo), True, f"panjang minimum {lo}")
+                yield case(self._sized(spec, ftype, lo - 1), False,
+                           f"di bawah minimum {lo}")
             if hi:
-                yield case(body * hi, True, f"panjang maksimum {hi}")
-                yield case(body * (hi + 1), False, f"melebihi maksimum {hi}")
+                yield case(self._sized(spec, ftype, hi), True, f"panjang maksimum {hi}")
+                yield case(self._sized(spec, ftype, hi + 1), False,
+                           f"melebihi maksimum {hi}")
 
         # --- kosong / whitespace -------------------------------------
         required = spec.get("required", False)
         yield case("", not required, "nilai kosong")
-        yield case("   ", not required, "spasi saja")
+        # spasi saja SELALU harus ditolak, juga pada field opsional: yang
+        # opsional boleh dikosongkan, bukan diisi spasi. Menandainya valid
+        # (v1) berarti app yang benar — yang men-trim lalu menolak — justru
+        # dilaporkan sebagai cacat.
+        yield case("   ", False, "spasi saja (opsional pun harus ditolak/di-trim)")
 
         # --- pelanggaran charset -------------------------------------
         if ftype in ("numeric", "phone"):
             yield case("1234abcd5678", False, "huruf pada field numerik")
             yield case("1234-5678-90", False, "tanda baca pada field numerik")
+            # Panjang BENAR tapi charset salah. Tanpa kasus ini, pelanggaran
+            # charset selalu tertutup oleh pelanggaran panjang: terukur 14 Agu,
+            # app memotong ketikan di 16 karakter lalu hanya mengeluh soal
+            # panjang ("Nomor KTP harus 16 digit"), sehingga huruf tidak pernah
+            # benar-benar diuji.
+            n = length.get("exact") or length.get("min")
+            if n:
+                yield case("a" * n, False, f"huruf sepanjang {n} — panjang benar, charset salah")
+                yield case("1" * (n - 1) + "x", False,
+                           f"satu huruf di ujung, panjang tetap {n}")
         if ftype == "email":
             yield case("bukan-email", False, "tanpa @")
             yield case("a@b", False, "domain tidak lengkap")
@@ -150,6 +169,17 @@ class Oracle:
     @staticmethod
     def _filler(ftype: str) -> str:
         return "1" if ftype in ("numeric", "phone") else "a"
+
+    @classmethod
+    def _sized(cls, spec: dict, ftype: str, n: int) -> str:
+        """Nilai sepanjang n yang tetap menghormati prefix_allowed."""
+        if n <= 0:
+            return ""
+        fill = cls._filler(ftype)
+        for prefix in spec.get("prefix_allowed", []):
+            if len(prefix) <= n:
+                return prefix + fill * (n - len(prefix))
+        return fill * n
 
     # ---------------------------------------------------------------
     # ORACLE — menilai hasil
@@ -184,27 +214,39 @@ class Oracle:
         out: list[Verdict] = []
         for raw in texts:
             text = re.sub(r"\s+", " ", (raw or "")).strip()
-            if not text:
+            hit = self.match_ui(text)
+            if not hit:
                 continue
+            kategori, rule = hit
 
-            if self._match(self.implicit.get("ui_expected", []), text):
+            if kategori == "expected":
                 continue
-
-            rule = self._match(self.implicit.get("ui_environment", []), text)
-            if rule:
+            if kategori == "environment":
                 out.append(Verdict(
                     False, rule["id"], text[:120],
                     "kondisi lingkungan, bukan cacat app — langkah ini tidak sah, ulangi",
                     rule.get("severity", "info"), "lingkungan"))
-                continue
-
-            rule = self._match(self.implicit.get("ui_forbidden", []), text)
-            if rule:
+            else:
                 out.append(Verdict(
                     False, rule["id"], text[:120],
                     f"pesan kegagalan tampil ke pengguna: {rule['id']}",
                     rule.get("severity", "high"), rule.get("kind", "bug")))
         return out
+
+    def match_ui(self, text: str) -> tuple[str, dict] | None:
+        """Kategori sebuah pesan layar: expected | environment | forbidden.
+
+        Satu-satunya tempat urutan itu ditentukan; scan_ui dan penguji form
+        sama-sama memakainya supaya tidak ada dua versi aturan yang berbeda.
+        """
+        t = re.sub(r"\s+", " ", (text or "")).strip()
+        if not t:
+            return None
+        for kategori in ("ui_expected", "ui_environment", "ui_forbidden"):
+            rule = self._match(self.implicit.get(kategori, []), t)
+            if rule:
+                return kategori[3:], rule
+        return None
 
     @staticmethod
     def _match(rules: list[dict], text: str) -> dict | None:

@@ -264,6 +264,42 @@ def test_aksi_terlarang():
 
 
 # ---------------------------------------------------------------
+def test_cacat_generator_prefix():
+    """Cacat 1 dari rencana: kasus panjang mengabaikan prefix_allowed.
+
+    Field ber-prefix menghasilkan '1111111111' dan ditandai VALID, padahal
+    melanggar prefix. Kasus panjang harus menguji panjang saja.
+    """
+    o = oracle()
+    o.fields["uji_prefix"] = {"label": "Uji", "type": "phone",
+                              "length": {"min": 10, "max": 13},
+                              "prefix_allowed": ["08", "+628"], "required": True}
+    cases = list(o.generate("uji_prefix"))
+    valid = [c for c in cases if c.expect_accept]
+    cek("semua kasus valid memakai prefix sah",
+        all(c.value.startswith(("08", "+628")) for c in valid), True)
+    # kasus panjang salah pun tetap berprefix: yang diuji panjangnya, bukan prefix
+    panjang_salah = [c for c in cases if "minimum" in c.reason or "maksimum" in c.reason]
+    cek("kasus panjang salah tetap berprefix",
+        all(c.value.startswith(("08", "+628")) for c in panjang_salah), True)
+    cek("panjangnya tetap benar",
+        [len(c.value) for c in cases if c.reason == "panjang minimum 10"], [10])
+
+
+def test_cacat_generator_spasi():
+    """Cacat 2 dari rencana: '   ' ditandai valid pada field opsional."""
+    o = oracle()
+    o.fields["uji_opsional"] = {"label": "Uji", "type": "text", "required": False}
+    cases = {c.reason: c for c in o.generate("uji_opsional")}
+    spasi = next(c for r, c in cases.items() if r.startswith("spasi saja"))
+    cek("spasi selalu ditolak walau opsional", spasi.expect_accept, False)
+    # kosong pada field opsional memang boleh — itu beda perkara
+    cek("kosong pada opsional tetap boleh",
+        cases["nilai kosong"].expect_accept, True)
+    cek("kosong pada wajib tetap ditolak",
+        {c.reason: c for c in o.generate("ktp")}["nilai kosong"].expect_accept, False)
+
+
 def test_reproducible():
     """Batasan proyek: dua kali jalan memberi hasil identik."""
     a, b = oracle(), oracle()
