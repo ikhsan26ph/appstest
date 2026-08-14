@@ -1,0 +1,683 @@
+{
+  "package": "com.phbid_darat.supir.stg",
+  "app_name": "Driver Hub [STG]",
+  "version_name": "2.1.1-stg",
+  "version_code": "14",
+  "min_sdk": "23",
+  "target_sdk": "36",
+  "main_activity": "com.phbid_darat.supir.MainActivity",
+  "is_staging": true,
+  "permissions": [
+    "ACCESS_BACKGROUND_LOCATION",
+    "ACCESS_COARSE_LOCATION",
+    "ACCESS_FINE_LOCATION",
+    "ACCESS_NETWORK_STATE",
+    "CAMERA",
+    "DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+    "FOREGROUND_SERVICE",
+    "FOREGROUND_SERVICE_LOCATION",
+    "INTERNET",
+    "POST_NOTIFICATIONS",
+    "RECEIVE",
+    "RECEIVE_BOOT_COMPLETED",
+    "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+    "WAKE_LOCK"
+  ],
+  "sensitive_permissions": [
+    {
+      "perm": "ACCESS_BACKGROUND_LOCATION",
+      "label": "Lokasi background"
+    },
+    {
+      "perm": "ACCESS_COARSE_LOCATION",
+      "label": "Lokasi kasar"
+    },
+    {
+      "perm": "ACCESS_FINE_LOCATION",
+      "label": "Lokasi presisi"
+    },
+    {
+      "perm": "CAMERA",
+      "label": "Kamera"
+    },
+    {
+      "perm": "POST_NOTIFICATIONS",
+      "label": "Notifikasi"
+    }
+  ],
+  "feature_modules": [
+    "auth",
+    "notification",
+    "profile",
+    "tracking"
+  ],
+  "exported_components": [
+    {
+      "type": "activity",
+      "name": "com.phbid_darat.supir.MainActivity",
+      "exported": "true",
+      "deep_links": [],
+      "actions": [
+        "MAIN"
+      ]
+    },
+    {
+      "type": "service",
+      "name": "androidx.work.impl.background.systemjob.SystemJobService",
+      "exported": "true",
+      "deep_links": []
+    },
+    {
+      "type": "receiver",
+      "name": "com.google.firebase.iid.FirebaseInstanceIdReceiver",
+      "exported": "true",
+      "deep_links": [],
+      "actions": [
+        "RECEIVE"
+      ]
+    },
+    {
+      "type": "receiver",
+      "name": "androidx.work.impl.diagnostics.DiagnosticsReceiver",
+      "exported": "true",
+      "deep_links": [],
+      "actions": [
+        "REQUEST_DIAGNOSTICS"
+      ]
+    },
+    {
+      "type": "receiver",
+      "name": "androidx.profileinstaller.ProfileInstallReceiver",
+      "exported": "true",
+      "deep_links": [],
+      "actions": [
+        "INSTALL_PROFILE",
+        "SKIP_FILE",
+        "SAVE_PROFILE",
+        "BENCHMARK_OPERATION"
+      ]
+    }
+  ],
+  "asset_hints": [
+    {
+      "key": "no_internet",
+      "desc": "Tampilan offline / tanpa koneksi"
+    },
+    {
+      "key": "maintenance",
+      "desc": "Mode maintenance server"
+    },
+    {
+      "key": "update_app",
+      "desc": "Force update versi usang"
+    },
+    {
+      "key": "notification_setting",
+      "desc": "Layar pengaturan notifikasi"
+    },
+    {
+      "key": "splash",
+      "desc": "Splash screen saat cold start"
+    }
+  ],
+  "capabilities": [
+    {
+      "key": "barcode",
+      "label": "Pemindaian barcode/QR",
+      "scenario": "Buka pemindai, uji kode valid, kode rusak, dan izin kamera ditolak",
+      "evidence": [
+        "barcode-scanning",
+        "barcode-scanning-common",
+        "barcode_ssd_mobilenet_v1_dmp25_quant.tflite",
+        "mlkit_barcode_models"
+      ]
+    },
+    {
+      "key": "vision",
+      "label": "ML Kit vision (on-device)",
+      "scenario": "Uji inferensi berhasil, gagal, dan saat model belum terunduh",
+      "evidence": [
+        "vision-common",
+        "vision-interfaces"
+      ]
+    },
+    {
+      "key": "camera",
+      "label": "Kamera / CameraX",
+      "scenario": "Uji ambil gambar, batal, dan izin kamera ditolak",
+      "evidence": [
+        "androidx.camera_camera-camera2",
+        "androidx.camera_camera-core",
+        "androidx.camera_camera-lifecycle",
+        "androidx.camera_camera-video"
+      ]
+    },
+    {
+      "key": "messaging",
+      "label": "Push notification (FCM)",
+      "scenario": "Uji terima notifikasi foreground, background, dan app mati",
+      "evidence": [
+        "play-services-cloud-messaging"
+      ]
+    },
+    {
+      "key": "room",
+      "label": "Database lokal",
+      "scenario": "Uji data tersimpan, migrasi skema, dan mode offline",
+      "evidence": [
+        "androidx.room_room-ktx",
+        "androidx.room_room-runtime"
+      ]
+    },
+    {
+      "key": "work",
+      "label": "Background job (WorkManager)",
+      "scenario": "Uji job jalan saat app mati dan saat baterai hemat",
+      "evidence": [
+        "androidx.work_work-runtime",
+        "androidx.work_work-runtime-ktx"
+      ]
+    }
+  ],
+  "bundled_libs": [
+    {
+      "artifact": "androidx.activity_activity",
+      "version": "1.8.2"
+    },
+    {
+      "artifact": "androidx.activity_activity-compose",
+      "version": "1.8.2"
+    },
+    {
+      "artifact": "androidx.activity_activity-ktx",
+      "version": "1.8.2"
+    },
+    {
+      "artifact": "androidx.annotation_annotation-experimental",
+      "version": "1.4.1"
+    },
+    {
+      "artifact": "androidx.appcompat_appcompat",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.appcompat_appcompat-resources",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.arch.core_core-runtime",
+      "version": "task ':arch:core:core-runtime:writeVersionFile' property 'version'"
+    },
+    {
+      "artifact": "androidx.autofill_autofill",
+      "version": "1.0.0"
+    },
+    {
+      "artifact": "androidx.camera_camera-camera2",
+      "version": "1.4.2"
+    },
+    {
+      "artifact": "androidx.camera_camera-core",
+      "version": "1.4.2"
+    },
+    {
+      "artifact": "androidx.camera_camera-lifecycle",
+      "version": "1.4.2"
+    },
+    {
+      "artifact": "androidx.camera_camera-video",
+      "version": "1.4.2"
+    },
+    {
+      "artifact": "androidx.camera_camera-view",
+      "version": "1.4.2"
+    },
+    {
+      "artifact": "androidx.cardview_cardview",
+      "version": "1.0.0"
+    },
+    {
+      "artifact": "androidx.compose.animation_animation",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.animation_animation-core",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.foundation_foundation",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.foundation_foundation-layout",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.material3_material3",
+      "version": "1.2.0"
+    },
+    {
+      "artifact": "androidx.compose.material_material",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.material_material-icons-core",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.material_material-ripple",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.runtime_runtime",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.runtime_runtime-livedata",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.runtime_runtime-saveable",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.ui_ui",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.ui_ui-geometry",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.ui_ui-graphics",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.ui_ui-text",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.ui_ui-text-google-fonts",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.ui_ui-tooling-preview",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.ui_ui-unit",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.compose.ui_ui-util",
+      "version": "1.6.1"
+    },
+    {
+      "artifact": "androidx.coordinatorlayout_coordinatorlayout",
+      "version": "1.1.0"
+    },
+    {
+      "artifact": "androidx.core_core",
+      "version": "1.12.0"
+    },
+    {
+      "artifact": "androidx.core_core-ktx",
+      "version": "1.12.0"
+    },
+    {
+      "artifact": "androidx.core_core-splashscreen",
+      "version": "1.0.1"
+    },
+    {
+      "artifact": "androidx.cursoradapter_cursoradapter",
+      "version": "1.0.0"
+    },
+    {
+      "artifact": "androidx.customview_customview",
+      "version": "1.1.0"
+    },
+    {
+      "artifact": "androidx.customview_customview-poolingcontainer",
+      "version": "1.0.0"
+    },
+    {
+      "artifact": "androidx.databinding_viewbinding",
+      "version": "8.13.0"
+    },
+    {
+      "artifact": "androidx.datastore_datastore",
+      "version": "1.1.7"
+    },
+    {
+      "artifact": "androidx.datastore_datastore-core",
+      "version": "1.1.7"
+    },
+    {
+      "artifact": "androidx.datastore_datastore-preferences",
+      "version": "1.1.7"
+    },
+    {
+      "artifact": "androidx.datastore_datastore-preferences-core",
+      "version": "1.1.7"
+    },
+    {
+      "artifact": "androidx.documentfile_documentfile",
+      "version": "1.0.0"
+    },
+    {
+      "artifact": "androidx.drawerlayout_drawerlayout",
+      "version": "1.1.1"
+    },
+    {
+      "artifact": "androidx.dynamicanimation_dynamicanimation",
+      "version": "1.0.0"
+    },
+    {
+      "artifact": "androidx.emoji2_emoji2",
+      "version": "1.3.0"
+    },
+    {
+      "artifact": "androidx.emoji2_emoji2-views-helper",
+      "version": "1.3.0"
+    },
+    {
+      "artifact": "androidx.exifinterface_exifinterface",
+      "version": "1.3.6"
+    },
+    {
+      "artifact": "androidx.fragment_fragment",
+      "version": "1.6.2"
+    },
+    {
+      "artifact": "androidx.fragment_fragment-ktx",
+      "version": "1.6.2"
+    },
+    {
+      "artifact": "androidx.interpolator_interpolator",
+      "version": "1.0.0"
+    },
+    {
+      "artifact": "androidx.legacy_legacy-support-core-utils",
+      "version": "1.0.0"
+    },
+    {
+      "artifact": "androidx.lifecycle_lifecycle-livedata",
+      "version": "2.7.0"
+    },
+    {
+      "artifact": "androidx.lifecycle_lifecycle-livedata-core",
+      "version": "2.7.0"
+    },
+    {
+      "artifact": "androidx.lifecycle_lifecycle-livedata-core-ktx",
+      "version": "2.7.0"
+    },
+    {
+      "artifact": "androidx.lifecycle_lifecycle-livedata-ktx",
+      "version": "2.7.0"
+    },
+    {
+      "artifact": "androidx.lifecycle_lifecycle-process",
+      "version": "2.7.0"
+    },
+    {
+      "artifact": "androidx.lifecycle_lifecycle-runtime",
+      "version": "2.7.0"
+    },
+    {
+      "artifact": "androidx.lifecycle_lifecycle-runtime-compose",
+      "version": "2.7.0"
+    },
+    {
+      "artifact": "androidx.lifecycle_lifecycle-runtime-ktx",
+      "version": "2.7.0"
+    },
+    {
+      "artifact": "androidx.lifecycle_lifecycle-service",
+      "version": "2.7.0"
+    },
+    {
+      "artifact": "androidx.lifecycle_lifecycle-viewmodel",
+      "version": "2.7.0"
+    },
+    {
+      "artifact": "androidx.lifecycle_lifecycle-viewmodel-compose",
+      "version": "2.7.0"
+    },
+    {
+      "artifact": "androidx.lifecycle_lifecycle-viewmodel-ktx",
+      "version": "2.7.0"
+    },
+    {
+      "artifact": "androidx.lifecycle_lifecycle-viewmodel-savedstate",
+      "version": "2.7.0"
+    },
+    {
+      "artifact": "androidx.loader_loader",
+      "version": "1.0.0"
+    },
+    {
+      "artifact": "androidx.localbroadcastmanager_localbroadcastmanager",
+      "version": "1.0.0"
+    },
+    {
+      "artifact": "androidx.navigation_navigation-common",
+      "version": "2.7.7"
+    },
+    {
+      "artifact": "androidx.navigation_navigation-common-ktx",
+      "version": "2.7.7"
+    },
+    {
+      "artifact": "androidx.navigation_navigation-compose",
+      "version": "2.7.7"
+    },
+    {
+      "artifact": "androidx.navigation_navigation-runtime",
+      "version": "2.7.7"
+    },
+    {
+      "artifact": "androidx.navigation_navigation-runtime-ktx",
+      "version": "2.7.7"
+    },
+    {
+      "artifact": "androidx.print_print",
+      "version": "1.0.0"
+    },
+    {
+      "artifact": "androidx.profileinstaller_profileinstaller",
+      "version": "1.3.1"
+    },
+    {
+      "artifact": "androidx.recyclerview_recyclerview",
+      "version": "1.1.0"
+    },
+    {
+      "artifact": "androidx.room_room-ktx",
+      "version": "2.6.1"
+    },
+    {
+      "artifact": "androidx.room_room-runtime",
+      "version": "2.6.1"
+    },
+    {
+      "artifact": "androidx.savedstate_savedstate",
+      "version": "1.2.1"
+    },
+    {
+      "artifact": "androidx.savedstate_savedstate-ktx",
+      "version": "1.2.1"
+    },
+    {
+      "artifact": "androidx.security_security-crypto",
+      "version": "1.1.0-alpha06"
+    },
+    {
+      "artifact": "androidx.sqlite_sqlite",
+      "version": "2.4.0"
+    },
+    {
+      "artifact": "androidx.sqlite_sqlite-framework",
+      "version": "2.4.0"
+    },
+    {
+      "artifact": "androidx.startup_startup-runtime",
+      "version": "1.1.1"
+    },
+    {
+      "artifact": "androidx.tracing_tracing",
+      "version": "1.2.0"
+    },
+    {
+      "artifact": "androidx.tracing_tracing-ktx",
+      "version": "1.2.0"
+    },
+    {
+      "artifact": "androidx.transition_transition",
+      "version": "1.2.0"
+    },
+    {
+      "artifact": "androidx.vectordrawable_vectordrawable",
+      "version": "1.1.0"
+    },
+    {
+      "artifact": "androidx.vectordrawable_vectordrawable-animated",
+      "version": "1.1.0"
+    },
+    {
+      "artifact": "androidx.versionedparcelable_versionedparcelable",
+      "version": "1.1.1"
+    },
+    {
+      "artifact": "androidx.viewpager2_viewpager2",
+      "version": "1.0.0"
+    },
+    {
+      "artifact": "androidx.viewpager_viewpager",
+      "version": "1.0.0"
+    },
+    {
+      "artifact": "androidx.work_work-runtime",
+      "version": "2.9.0"
+    },
+    {
+      "artifact": "androidx.work_work-runtime-ktx",
+      "version": "2.9.0"
+    },
+    {
+      "artifact": "barcode-scanning",
+      "version": "17.3.0"
+    },
+    {
+      "artifact": "barcode-scanning-common",
+      "version": "17.0.0"
+    },
+    {
+      "artifact": "com.google.android.material_material",
+      "version": "1.11.0"
+    },
+    {
+      "artifact": "common",
+      "version": "18.11.0"
+    },
+    {
+      "artifact": "firebase-encoders",
+      "version": "17.0.0"
+    },
+    {
+      "artifact": "firebase-encoders-proto",
+      "version": "16.0.0"
+    },
+    {
+      "artifact": "firebase-iid-interop",
+      "version": "17.1.0"
+    },
+    {
+      "artifact": "firebase-measurement-connector",
+      "version": "20.0.1"
+    },
+    {
+      "artifact": "image",
+      "version": "1.0.0-beta1"
+    },
+    {
+      "artifact": "kotlinx_coroutines_android",
+      "version": "1.9.0"
+    },
+    {
+      "artifact": "kotlinx_coroutines_core",
+      "version": "1.9.0"
+    },
+    {
+      "artifact": "kotlinx_coroutines_play_services",
+      "version": "1.9.0"
+    },
+    {
+      "artifact": "play-services-base",
+      "version": "18.9.0"
+    },
+    {
+      "artifact": "play-services-basement",
+      "version": "18.9.0"
+    },
+    {
+      "artifact": "play-services-cloud-messaging",
+      "version": "17.4.0"
+    },
+    {
+      "artifact": "play-services-location",
+      "version": "21.1.0"
+    },
+    {
+      "artifact": "play-services-mlkit-barcode-scanning",
+      "version": "18.3.1"
+    },
+    {
+      "artifact": "play-services-stats",
+      "version": "17.0.2"
+    },
+    {
+      "artifact": "play-services-tasks",
+      "version": "18.4.0"
+    },
+    {
+      "artifact": "vision-common",
+      "version": "17.3.0"
+    },
+    {
+      "artifact": "vision-interfaces",
+      "version": "16.3.0"
+    }
+  ],
+  "asset_groups": [
+    {
+      "dir": "(root)",
+      "files": 7,
+      "bytes": 1754325,
+      "models": []
+    },
+    {
+      "dir": "mlkit_barcode_models",
+      "files": 3,
+      "bytes": 880888,
+      "models": [
+        "barcode_ssd_mobilenet_v1_dmp25_quant.tflite",
+        "oned_auto_regressor_mobile.tflite",
+        "oned_feature_extractor_mobile.tflite"
+      ]
+    },
+    {
+      "dir": "dexopt",
+      "files": 2,
+      "bytes": 9111,
+      "models": []
+    }
+  ],
+  "activities": [
+    "com.phbid_darat.supir.MainActivity",
+    "com.google.android.gms.common.api.GoogleApiActivity"
+  ],
+  "services": [],
+  "receivers": [],
+  "deep_links": []
+}

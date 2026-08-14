@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtualenv
+.venv/
+venv/
+env/
+
+# Rahasia — ANTHROPIC_API_KEY dsb. jangan pernah ikut ter-commit
+.env
+.env.*
+!.env.example
+
+# APK yang ditarik dari device untuk dianalisis (biner besar, mudah diambil ulang)
+*.apk
+*.aab
+
+# Artefak run agen (regenerable tiap eksekusi)
+qa_report*.json
+screenshots/
+logcat*.txt
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Setelan Claude Code per-mesin (berisi path lokal laptop ini).
+# `.claude/settings.json` yang dipakai bersama tetap dilacak.
+.claude/settings.local.json
+
+# Catatan: folder `analysis/` sengaja TIDAK diabaikan. Isinya test plan hasil
+# generate yang dibaca manusia, dan men-diff-nya antar versi APK justru berguna
+# untuk melihat modul/kapabilitas apa yang bertambah atau hilang.
