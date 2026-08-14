@@ -62,15 +62,25 @@ def norm_label(s: str | None) -> str:
 # ---------------------------------------------------------------
 def _inner_label(r: tuple[int, int, int, int], texts: list) -> str:
     """Teks yang tergambar DI DALAM elemen: placeholder field, atau caption
-    tombol yang dirender sebagai TextView terpisah di dalam View kosong."""
-    best, best_area = "", None
+    tombol yang dirender sebagai TextView terpisah di dalam View kosong.
+
+    Dipilih yang pusatnya PALING DEKAT ke pusat elemen, bukan yang paling
+    kecil. Aturan "paling kecil" gagal saat dua elemen klik bertumpuk: di
+    Beranda, tombol "Lapor" [799,1875][1038,2022] menumpang di dalam kotak
+    kartu [84,1910][996,2057], dan captionnya lebih pendek daripada
+    "Isi Penugasan" — sehingga kartu kedua ikut bernama 'Lapor' dan tombol
+    "Isi Penugasan" kedua lenyap dari hasil parse.
+    """
+    ecx, ecy = (r[0] + r[2]) // 2, (r[1] + r[3]) // 2
+    best, best_key = "", None
     for a, tr in texts:
         cx, cy = (tr[0] + tr[2]) // 2, (tr[1] + tr[3]) // 2
         if not (r[0] <= cx <= r[2] and r[1] <= cy <= r[3]):
             continue
         area = (tr[2] - tr[0]) * (tr[3] - tr[1])
-        if best_area is None or area < best_area:
-            best, best_area = node_text(a), area
+        key = ((cx - ecx) ** 2 + (cy - ecy) ** 2, area)
+        if best_key is None or key < best_key:
+            best, best_key = node_text(a), key
     return best
 
 
@@ -96,10 +106,17 @@ def _label_above(r: tuple[int, int, int, int], texts: list) -> str:
 def parse_elements(page_source: str) -> list[dict]:
     """Ekstrak elemen interaktif, lengkap dengan label turunan.
 
-    Tiap elemen: index, text, label, id, class, clickable, editable, xy, bounds.
+    Tiap elemen: index, text, label, id, class, clickable, editable, enabled,
+    xy, bounds.
     `text` = teks sendiri, atau caption/placeholder di dalamnya.
     `label` = teks tepat di atasnya; hanya diisi untuk field, karena tombol
     sudah bernama lewat caption-nya sendiri dan label di atasnya cuma noise.
+    `enabled` = False kalau app menonaktifkan elemen itu. WAJIB dibaca sebelum
+    menyimpulkan apa pun dari sebuah tap: tombol disabled tetap `clickable`
+    di UI tree, jadi tanpa atribut ini ia terlihat seperti tombol normal yang
+    membisu. Persis itu yang terjadi 14 Agu — tombol "Isi Penugasan" pada
+    order yang belum gilirannya dilaporkan sebagai cacat, padahal app menandai
+    `enabled=false` dengan benar dan yang buta adalah pembaca ini.
     """
     try:
         root = ET.fromstring(page_source)
@@ -131,6 +148,7 @@ def parse_elements(page_source: str) -> list[dict]:
             "class": a.get("class", "").split(".")[-1],
             "clickable": clickable,
             "editable": editable,
+            "enabled": a.get("enabled") != "false",
             "xy": ((r[0] + r[2]) // 2, (r[1] + r[3]) // 2),
             "bounds": a.get("bounds", ""),
         })
@@ -216,15 +234,22 @@ def find_field(elements: list[dict], label: str) -> dict | None:
     return None
 
 
-def find_tappable(elements: list[dict], caption: str) -> dict | None:
+def find_tappable(elements: list[dict], caption: str,
+                  include_disabled: bool = False) -> dict | None:
     """Elemen yang bisa ditekan, dicari lewat caption di dalamnya.
 
     Tombol app ini adalah android.view.View kosong berisi TextView, jadi
     caption-nya sudah ikut terangkat oleh parse_elements().
+
+    Tombol disabled dilewati secara bawaan — menekannya memang tidak
+    menghasilkan apa-apa, dan hasil "tidak ada reaksi" itu bukan temuan.
+    Pakai include_disabled=True kalau memang ingin memeriksa state-nya.
     """
     want = norm_label(caption)
     for e in elements:
-        if e["clickable"] and norm_label(e["text"]) == want:
+        if not e["clickable"] or norm_label(e["text"]) != want:
+            continue
+        if e["enabled"] or include_disabled:
             return e
     return None
 

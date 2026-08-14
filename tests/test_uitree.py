@@ -202,10 +202,42 @@ def test_find_field_dan_tappable():
     cek("tombol Simpan ketemu", simpan is not None and simpan["clickable"], True)
 
     beranda = parse_elements(fixture("beranda_app.xml"))
-    isi = find_tappable(beranda, "Isi Penugasan")
-    cek("caption di dalam View kosong terangkat", isi is not None, True)
+    lihat = find_tappable(beranda, "Lihat Data Order")
+    cek("caption di dalam View kosong terangkat", lihat is not None, True)
     cek("titik tekan di dalam tombol",
-        rect(isi["bounds"])[0] <= isi["xy"][0] <= rect(isi["bounds"])[2], True)
+        rect(lihat["bounds"])[0] <= lihat["xy"][0] <= rect(lihat["bounds"])[2], True)
+
+
+def test_tombol_disabled_dilewati():
+    """Tombol disabled TETAP clickable=true di UI tree.
+
+    14 Agu: kedua tombol "Isi Penugasan" di Beranda ber-enabled=false karena
+    belum giliran order itu — aturan produknya, tombol hanya aktif untuk
+    penugasan yang sedang berjalan. Tanpa membaca atribut `enabled`, tap ke
+    tombol itu terbaca sebagai "tombol membisu tanpa umpan balik" dan
+    dilaporkan sebagai cacat. Itu false positive; pembacanya yang buta.
+    """
+    beranda = parse_elements(fixture("beranda_app.xml"))
+    isi = [e for e in beranda if e["text"] == "Isi Penugasan"]
+    cek("dua tombol Isi Penugasan ada", len(isi), 2)
+    cek("keduanya clickable", [e["clickable"] for e in isi], [True, True])
+    cek("keduanya disabled", [e["enabled"] for e in isi], [False, False])
+
+    cek("find_tappable melewati yang disabled",
+        find_tappable(beranda, "Isi Penugasan"), None)
+    cek("bisa diminta eksplisit",
+        find_tappable(beranda, "Isi Penugasan", include_disabled=True) is not None, True)
+    cek("yang aktif tetap ketemu",
+        find_tappable(beranda, "Lihat Data Order")["enabled"], True)
+
+    # REGRESI: tombol "Lapor" menumpang di dalam kotak kartu kedua. Dengan
+    # aturan caption "paling kecil", kartu itu ikut bernama 'Lapor' dan tombol
+    # "Isi Penugasan" kedua hilang dari hasil parse — bug di atas jadi tak
+    # terlihat. Keduanya harus muncul sebagai elemen sendiri-sendiri.
+    lapor = find_tappable(beranda, "Lapor")
+    cek("Lapor tetap punya elemennya sendiri", lapor is not None, True)
+    cek("Lapor tidak menelan kartu",
+        rect(lapor["bounds"])[0] >= 700, True)
 
 
 def test_reproducible():
