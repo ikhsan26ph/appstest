@@ -9,8 +9,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from uitree import (all_texts, center, node_text, observe,  # noqa: E402
-                    parse_elements, rect)
+from uitree import (all_texts, center, find_field, find_tappable,  # noqa: E402
+                    node_text, norm_label, observe, observed_by_label,
+                    parse_elements, rect, value_for)
 
 FIX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
 LULUS, GAGAL = 0, []
@@ -52,8 +53,8 @@ def test_label_registrasi():
     ])
     # placeholder terbaca sebagai `text` walau bukan atribut hint
     cek("placeholder KTP", field[3][1], "Contoh: 3273 0101 0190 0001 (16 digit)")
-    # nilai nyata menang atas placeholder
-    cek("nilai WhatsApp", field[1][1], "6285155070869")
+    # nilai nyata menang atas placeholder (nomor di fixture sudah disamarkan)
+    cek("nilai WhatsApp", field[1][1], "6281122334455")
 
 
 def test_caption_tombol():
@@ -66,11 +67,15 @@ def test_caption_tombol():
     cek("tombol tanpa label", simpan["label"], "")
 
 
-def test_beranda_punya_id():
-    """Layar launcher punya resource-id; pastikan id ikut terbaca."""
-    els = parse_elements(fixture("beranda.xml"))
-    cek("beranda ada elemen", len(els) > 0, True)
+def test_launcher_punya_id():
+    """Kontras: launcher Samsung PUNYA resource-id, app-nya nyaris tidak.
+    Fixture ini dulu bernama beranda.xml, padahal isinya home screen HP —
+    bukan Beranda aplikasi. Beranda yang asli ada di beranda_app.xml."""
+    els = parse_elements(fixture("launcher_samsung.xml"))
+    cek("launcher ada elemen", len(els) > 0, True)
     cek("sebagian punya id", any(e["id"] for e in els), True)
+    cek("app sendiri nyaris tanpa id",
+        [e["id"] for e in parse_elements(fixture("profil_saya.xml")) if e["id"]], [])
 
 
 def test_all_texts():
@@ -116,6 +121,91 @@ def test_observe_toast_lebih_panjang_dari_jendela():
     cek("toast masih tampak saat jendela habis tetap dilaporkan",
         observe(lambda: toast, before={"Layar"}, window=0.2, interval=0.04),
         ["Gagal: 403"])
+
+
+def test_value_for_label():
+    """Selector layar tampilan: nilai = TextView tepat di bawah label.
+
+    Dump asli Profil Saya (Galaxy A52, 14 Agu). Keenam label ini persis yang
+    tertulis di `fields:` oracle_rules.yaml — kalau salah satu berhenti
+    resolve, aturan itu diam-diam jadi mati.
+    """
+    src = fixture("profil_saya.xml")
+    cek("Nama Sopir", value_for(src, "Nama Sopir"), "Budi")
+    cek("Nomor WhatsApp", value_for(src, "Nomor WhatsApp"), "62 811 2233 4455")
+    cek("Alamat", value_for(src, "Alamat"), "Jalan Mawar")
+    cek("Nomor SIM", value_for(src, "Nomor SIM"), "11223344556")
+    cek("Akhir Berlaku SIM", value_for(src, "Akhir Berlaku SIM"), "26/06/2026")
+
+    # label berikutnya berjarak 42 px, nilainya sendiri 11 px — yang terdekat
+    # harus menang, kalau tidak setiap nilai tertukar dengan label sesudahnya
+    cek("nilai menang atas label berikutnya",
+        value_for(src, "Nomor KTP"), "1234 5600 7788 9911 222")
+
+    cek("label tak ada", value_for(src, "Nomor Rekening"), "")
+    cek("xml rusak", value_for("<hierarchy", "Nomor KTP"), "")
+
+    # form berjarak 74 px (label→field), tampilan 11 px — satu ambang, dua layar
+    cek("label berbintang di form tetap resolve",
+        value_for(fixture("registrasi.xml"), "Nomor KTP"),
+        "Contoh: 3273 0101 0190 0001 (16 digit)")
+
+
+def test_observed_by_label():
+    """Bahan siap pakai untuk Oracle.check_screen()."""
+    obs = observed_by_label(fixture("profil_saya.xml"),
+                            ["Nomor KTP", "Nomor SIM", "Nomor Rekening"])
+    cek("bentuk observed", obs, {
+        "Nomor KTP": ["1234 5600 7788 9911 222"],
+        "Nomor SIM": ["11223344556"],
+        "Nomor Rekening": [],          # tidak ada di layar → daftar kosong
+    })
+
+
+def test_nilai_kosong_tidak_tertukar_label():
+    """Nilai kosong tidak boleh diisi oleh label berikutnya.
+
+    Di layar Profil Saya jarak label→label berikutnya 95 px, di luar jendela
+    80 px, jadi nilai yang dikosongkan menghasilkan '' dengan sendirinya —
+    geometri layar itu sudah melindungi.
+    """
+    src = fixture("profil_saya.xml").replace('text="62 811 2233 4455"', 'text=""')
+    cek("nilai kosong → kosong", value_for(src, "Nomor WhatsApp"), "")
+    cek("observed ikut kosong",
+        observed_by_label(src, ["Nomor WhatsApp", "Alamat"])["Nomor WhatsApp"], [])
+
+    # Tapi pada layar yang lebih rapat jebakannya nyata. XML sintetis di bawah
+    # meniru jarak 40 px antar-label — value_for polos menyerahkan 'Alamat'
+    # sebagai nilai 'Nomor WhatsApp', dan penjagaan di observed_by_label-lah
+    # yang menahannya.
+    rapat = ('<hierarchy>'
+             '<node bounds="[95,100][344,140]" text="Nomor WhatsApp"/>'
+             '<node bounds="[95,180][344,220]" text="Alamat"/>'
+             '<node bounds="[95,230][344,270]" text="Jalan Mawar"/>'
+             '</hierarchy>')
+    cek("layar rapat menipu value_for", value_for(rapat, "Nomor WhatsApp"), "Alamat")
+    cek("observed_by_label menolak nilai palsu",
+        observed_by_label(rapat, ["Nomor WhatsApp", "Alamat"]),
+        {"Nomor WhatsApp": [], "Alamat": ["Jalan Mawar"]})
+
+
+def test_find_field_dan_tappable():
+    els = parse_elements(fixture("registrasi.xml"))
+    ktp = find_field(els, "Nomor KTP")
+    cek("field KTP ketemu", ktp is not None and ktp["editable"], True)
+    cek("field KTP posisinya benar", ktp["label"], "Nomor KTP *")
+    cek("field tak ada", find_field(els, "Nomor Rekening"), None)
+    # tombol bukan field
+    cek("Simpan bukan field", find_field(els, "Simpan"), None)
+
+    simpan = find_tappable(els, "Simpan")
+    cek("tombol Simpan ketemu", simpan is not None and simpan["clickable"], True)
+
+    beranda = parse_elements(fixture("beranda_app.xml"))
+    isi = find_tappable(beranda, "Isi Penugasan")
+    cek("caption di dalam View kosong terangkat", isi is not None, True)
+    cek("titik tekan di dalam tombol",
+        rect(isi["bounds"])[0] <= isi["xy"][0] <= rect(isi["bounds"])[2], True)
 
 
 def test_reproducible():

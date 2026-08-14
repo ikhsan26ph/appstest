@@ -278,18 +278,30 @@ screens:
         label: "Nomor KTP"
         value: 1
 
+  profil_saya:
+    identified_by: ["Profil Saya", "Nomor KTP"]
+    invariants:
+      - id: profil_terisi
+        type: min_count
+        label: "Nomor KTP"
+        value: 1
+
   detail_penugasan:
-    identified_by: ["Pengirim"]
+    identified_by: ["ID Order", "Pengirim"]
     invariants:
       - id: no_duplicate_sender
-        type: unique_list
+        type: unique_parts
+        separator: ", "
         label: "Pengirim"
         note: >-
-          bug 14 Agu: pengirim muncul duplikat. BELUM diverifikasi ulang di v2 —
-          belum ada dump layar ini di repo, jadi bentuk nilai di bawah label
-          "Pengirim" masih asumsi. Ambil dump-nya sebelum invariant ini dipercaya.
+          bug 14 Agu: pengirim duplikat. Bentuknya BUKAN dua node terpisah —
+          dump aslinya satu TextView berisi
+          'PT. Ternak Ikan Buntal (IK), PT. Ternak Ikan Buntal (IK)' (56
+          karakter). `unique_list` v1/v2-awal karena itu tidak akan pernah
+          menangkapnya; yang benar adalah memecah nilai lalu mencari bagian
+          berulang.
 
-      - id: sender_list_not_empty
+      - id: sender_not_empty
         type: min_count
         label: "Pengirim"
         value: 1

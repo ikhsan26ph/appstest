@@ -24,6 +24,7 @@ from typing import Callable
 BOUNDS_RE = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
 
 MAX_LABEL_GAP = 260  # px vertikal maksimum antara label dan field-nya
+MAX_VALUE_GAP = 80   # px vertikal maksimum antara label dan NILAI di bawahnya
 TOAST_POLL = 0.35    # interval polling; toast validasi hidup ~2 detik saja
 TOAST_WINDOW = 4.5   # lama memantau setelah tiap aksi; > LENGTH_LONG (3,5 s)
 
@@ -45,6 +46,15 @@ def center(bounds: str | None) -> tuple[int, int] | None:
 
 def node_text(attrib: dict) -> str:
     return (attrib.get("text") or attrib.get("content-desc") or "").strip()
+
+
+def norm_label(s: str | None) -> str:
+    """Samakan label dari layar dengan label yang tertulis di aturan.
+
+    Tanda wajib menyatu di TextView yang sama ('Nomor KTP *'), dan spasi di
+    dump kadang ganda. Tanpa normalisasi ini pencocokan label selalu meleset.
+    """
+    return re.sub(r"\s+", " ", (s or "").replace("*", " ")).strip().casefold()
 
 
 # ---------------------------------------------------------------
@@ -125,6 +135,98 @@ def parse_elements(page_source: str) -> list[dict]:
             "bounds": a.get("bounds", ""),
         })
     return els
+
+
+def _value_below(r: tuple[int, int, int, int], texts: list) -> str:
+    """Kebalikan _label_above: nilai berada tepat DI BAWAH labelnya.
+
+    Tiga jarak terukur (Galaxy A52, 14 Agu):
+      11 px  label→nilai di layar tampilan (Profil Saya)
+      42 px  nilai→label berikutnya di layar yang sama
+      74 px  label→field di form (Registrasi)
+    MAX_VALUE_GAP 80 px melayani tampilan dan form sekaligus, dan yang dipilih
+    selalu yang PALING DEKAT — jadi label berikutnya tidak pernah menang atas
+    nilainya sendiri.
+    """
+    best, best_y = "", None
+    for a, tr in texts:
+        if tr[1] < r[3]:                      # harus berada di bawah label
+            continue
+        if tr[2] <= r[0] or tr[0] >= r[2]:    # harus beririsan horizontal
+            continue
+        if tr[1] - r[3] > MAX_VALUE_GAP:
+            continue
+        if best_y is None or tr[1] < best_y:  # ambil yang paling dekat
+            best, best_y = node_text(a), tr[1]
+    return best
+
+
+def value_for(page_source: str, label: str) -> str:
+    """Nilai yang tergambar di bawah sebuah label. '' kalau labelnya tak ada.
+
+    Ini "selector" untuk layar tampilan: app merender pasangan label/nilai
+    sebagai dua TextView bertumpuk tanpa resource-id, jadi satu-satunya
+    pegangan adalah teks labelnya sendiri plus geometri.
+
+    Hati-hati: kalau nilainya KOSONG, yang terdekat di bawah label justru
+    label berikutnya (42 px), dan fungsi ini akan mengembalikannya seolah
+    nilai. Pemakaian lewat observed_by_label() sudah dijaga dari jebakan itu.
+    """
+    try:
+        root = ET.fromstring(page_source)
+    except ET.ParseError:
+        return ""
+    nodes = [(n.attrib, rect(n.attrib.get("bounds"))) for n in root.iter()]
+    texts = [(a, r) for a, r in nodes if r and node_text(a)]
+    want = norm_label(label)
+    for a, r in texts:
+        if norm_label(node_text(a)) == want:
+            return _value_below(r, [t for t in texts if t[1] != r])
+    return ""
+
+
+def observed_by_label(page_source: str, labels: list[str]) -> dict[str, list[str]]:
+    """Bahan untuk Oracle.check_screen(): {label: [nilai]}, label yang diminta saja.
+
+    Sengaja hanya label yang diminta. Menebak sendiri mana node yang label dan
+    mana yang nilai akan salah pada layar yang label & nilainya sama-sama
+    TextView polos — aturan yang tahu, bukan pembaca UI.
+
+    Nilai yang ternyata sama dengan label lain yang diminta dibuang: itu tanda
+    nilainya kosong dan yang terbaca justru label berikutnya. Lebih baik
+    melaporkan "tidak ada" (yang akan ketahuan oleh invariant min_count)
+    daripada menyerahkan nilai palsu yang tampak masuk akal.
+    """
+    lain = {norm_label(x) for x in labels}
+    out: dict[str, list[str]] = {}
+    for label in labels:
+        val = value_for(page_source, label)
+        if val and norm_label(val) in lain - {norm_label(label)}:
+            val = ""
+        out[label] = [val] if val else []
+    return out
+
+
+def find_field(elements: list[dict], label: str) -> dict | None:
+    """Elemen yang bisa diketik, dicari lewat label di atasnya."""
+    want = norm_label(label)
+    for e in elements:
+        if e["editable"] and norm_label(e["label"]) == want:
+            return e
+    return None
+
+
+def find_tappable(elements: list[dict], caption: str) -> dict | None:
+    """Elemen yang bisa ditekan, dicari lewat caption di dalamnya.
+
+    Tombol app ini adalah android.view.View kosong berisi TextView, jadi
+    caption-nya sudah ikut terangkat oleh parse_elements().
+    """
+    want = norm_label(caption)
+    for e in elements:
+        if e["clickable"] and norm_label(e["text"]) == want:
+            return e
+    return None
 
 
 def all_texts(page_source: str) -> set[str]:

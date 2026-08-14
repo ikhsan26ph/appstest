@@ -34,6 +34,10 @@ from typing import Any, Iterator
 
 import yaml
 
+# satu-satunya definisi normalisasi label; tinggal di pembaca UI karena di
+# situlah bentuk teks layar diketahui. Diekspor ulang demi pemanggil lama.
+from uitree import norm_label  # noqa: F401
+
 
 @dataclass
 class Case:
@@ -61,15 +65,6 @@ class Verdict:
         else:
             mark = "FAIL"
         return f"[{mark}] {self.field}={self.value!r} — {self.message}"
-
-
-def norm_label(s: str) -> str:
-    """Samakan label UI dengan label di YAML.
-
-    Tanda wajib menyatu di TextView yang sama ('Nomor KTP *'), dan spasi di
-    dump kadang ganda. Tanpa normalisasi ini pencocokan label selalu meleset.
-    """
-    return re.sub(r"\s+", " ", (s or "").replace("*", " ")).strip().casefold()
 
 
 class Oracle:
@@ -314,6 +309,20 @@ class Oracle:
                         False, inv["id"], ", ".join(sorted(dupes)),
                         f"nilai duplikat di bawah label {label!r}",
                         inv.get("severity", "high")))
+
+            elif kind == "unique_parts":
+                # duplikat di app ini terjadi DI DALAM satu nilai, bukan
+                # sebagai dua node terpisah: 'PT. X (IK), PT. X (IK)'.
+                sep = inv.get("separator", ", ")
+                for value in items:
+                    parts = [p.strip() for p in value.split(sep) if p.strip()]
+                    dupes = {p for p in parts if parts.count(p) > 1}
+                    if dupes:
+                        out.append(Verdict(
+                            False, inv["id"], value[:120],
+                            f"bagian berulang di dalam nilai {label!r}: "
+                            + ", ".join(sorted(dupes)),
+                            inv.get("severity", "high")))
 
             elif kind == "min_count":
                 if len(items) < inv["value"]:

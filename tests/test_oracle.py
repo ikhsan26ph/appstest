@@ -173,20 +173,34 @@ def test_norm_label():
     cek("kosong aman", norm_label(None), "")
 
 
+def test_duplikat_pengirim_bentuk_sebenarnya():
+    """Bug 14 Agu: duplikat terjadi DI DALAM satu nilai, bukan sebagai dua node.
+
+    String di bawah ini harfiah dari dump layar detail penugasan
+    (order TSH-ORD5293580177) — 56 karakter, nama pengirim yang sama dua kali
+    dipisah koma. `unique_list` mustahil menangkapnya karena node-nya cuma satu.
+    """
+    o = oracle()
+    asli = {"Pengirim": ["PT. Ternak Ikan Buntal (IK), PT. Ternak Ikan Buntal (IK)"]}
+    v = o.check_screen("detail_penugasan", asli)
+    cek("duplikat dalam satu nilai terdeteksi", ids(v), ["no_duplicate_sender"])
+    cek("bagian berulang disebut",
+        "PT. Ternak Ikan Buntal (IK)" in v[0].message, True)
+
+    cek("pengirim tunggal lolos",
+        o.check_screen("detail_penugasan",
+                       {"Pengirim": ["PT. Ternak Ikan Buntal (IK)"]}), [])
+    cek("dua pengirim berbeda lolos",
+        o.check_screen("detail_penugasan",
+                       {"Pengirim": ["PT. Sinar Jaya, CV. Maju"]}), [])
+
+    cek("nilai kosong kena min_count",
+        ids(o.check_screen("detail_penugasan", {"Pengirim": []})),
+        ["sender_not_empty"])
+
+
 def test_check_screen_berbasis_label():
     o = oracle()
-    # kunci datang apa adanya dari dump ('Pengirim' tanpa bintang di sini)
-    dupe = {"Pengirim": ["PT Sinar Jaya", "PT Sinar Jaya"]}
-    v = o.check_screen("detail_penugasan", dupe)
-    cek("duplikat pengirim terdeteksi", ids(v), ["no_duplicate_sender"])
-    cek("nilai duplikat disebut", v[0].value, "PT Sinar Jaya")
-
-    unik = {"Pengirim": ["PT Sinar Jaya", "CV Maju"]}
-    cek("daftar unik lolos", o.check_screen("detail_penugasan", unik), [])
-
-    kosong = {"Pengirim": []}
-    cek("daftar kosong kena min_count",
-        ids(o.check_screen("detail_penugasan", kosong)), ["sender_list_not_empty"])
 
     # inti perubahan kontrak: label dari dump berbintang, YAML tidak
     berbintang = {"Nomor KTP *": ["3273010101900001"]}
@@ -194,6 +208,39 @@ def test_check_screen_berbasis_label():
         o.check_screen("registrasi", berbintang), [])
     cek("field hilang ketahuan",
         ids(o.check_screen("registrasi", {})), ["field_wajib_lengkap"])
+
+
+def test_rantai_uitree_ke_oracle():
+    """Rantai Tahap 2 di atas dump asli: baca layar → kenali → periksa invariant.
+
+    Ini yang menggantikan "selector nyata": tidak ada resource-id yang bisa
+    ditulis, jadi yang diverifikasi adalah label di aturan benar-benar
+    menemukan nilainya di dump asli.
+    """
+    from uitree import all_texts, observed_by_label
+    fix = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
+
+    def baca(nama):
+        with open(os.path.join(fix, nama), encoding="utf-8") as f:
+            return f.read()
+
+    o = oracle()
+    profil = baca("profil_saya.xml")
+    cek("Profil Saya dikenali", o.identify(all_texts(profil)), ["profil_saya"])
+    cek("Registrasi dikenali",
+        o.identify(all_texts(baca("registrasi.xml"))), ["registrasi"])
+    cek("home screen HP bukan layar app",
+        o.identify(all_texts(baca("launcher_samsung.xml"))), [])
+
+    obs = observed_by_label(profil, ["Nomor KTP"])
+    cek("nilai KTP terbaca dari dump", obs["Nomor KTP"],
+        ["1234 5600 7788 9911 222"])
+    cek("invariant layar lolos", o.check_screen("profil_saya", obs), [])
+
+    # seluruh label di `fields:` harus resolve; kalau tidak, aturannya mati diam
+    hilang = [f["label"] for f in o.fields.values()
+              if not observed_by_label(profil, [f["label"]])[f["label"]]]
+    cek("semua label fields resolve di Profil Saya", hilang, [])
 
 
 def test_identify_layar_tanpa_activity():
