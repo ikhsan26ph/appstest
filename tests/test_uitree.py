@@ -88,7 +88,7 @@ def test_parse_rusak():
 
 
 def test_observe_toast():
-    """Toast = teks yang muncul lalu hilang. Sumber palsu, tanpa device."""
+    """Teks yang baru muncul setelah aksi. Sumber palsu, tanpa device."""
     kosong = '<hierarchy><node bounds="[0,0][10,10]" text="Layar"/></hierarchy>'
     toast = ('<hierarchy><node bounds="[0,0][10,10]" text="Layar"/>'
              '<node bounds="[0,0][10,10]" text="Gagal: 403"/></hierarchy>')
@@ -101,14 +101,21 @@ def test_observe_toast():
     pesan = observe(baca, before={"Layar"}, window=0.25, interval=0.04)
     cek("toast tertangkap", pesan, ["Gagal: 403"])
 
-    # teks yang menetap bukan toast
-    sisa2 = [kosong, toast, toast, toast, toast, toast, toast, toast]
+    cek("teks lama tidak dilaporkan ulang",
+        observe(lambda: kosong, before={"Layar"}, window=0.15, interval=0.04), [])
 
-    def baca2():
-        return sisa2.pop(0) if sisa2 else toast
 
-    cek("teks menetap diabaikan",
-        observe(baca2, before={"Layar"}, window=0.25, interval=0.04), [])
+def test_observe_toast_lebih_panjang_dari_jendela():
+    """REGRESI 14 Agu: versi lama mengembalikan `appeared - last`, jadi toast
+    yang MASIH tampak saat jendela habis ikut terbuang. Diukur di Galaxy A52,
+    'Gagal: 403' bertahan ~3,5 s (Toast.LENGTH_LONG) melewati jendela 3 s —
+    hasilnya daftar kosong padahal pesannya terbaca di tiap polling."""
+    toast = ('<hierarchy><node bounds="[0,0][10,10]" text="Layar"/>'
+             '<node bounds="[0,0][10,10]" text="Gagal: 403"/></hierarchy>')
+
+    cek("toast masih tampak saat jendela habis tetap dilaporkan",
+        observe(lambda: toast, before={"Layar"}, window=0.2, interval=0.04),
+        ["Gagal: 403"])
 
 
 def test_reproducible():

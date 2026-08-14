@@ -25,7 +25,7 @@ BOUNDS_RE = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
 
 MAX_LABEL_GAP = 260  # px vertikal maksimum antara label dan field-nya
 TOAST_POLL = 0.35    # interval polling; toast validasi hidup ~2 detik saja
-TOAST_WINDOW = 3.0   # lama memantau setelah tiap aksi
+TOAST_WINDOW = 4.5   # lama memantau setelah tiap aksi; > LENGTH_LONG (3,5 s)
 
 
 # ---------------------------------------------------------------
@@ -141,27 +141,39 @@ def all_texts(page_source: str) -> set[str]:
 # ---------------------------------------------------------------
 def observe(read_source: Callable[[], str], before: set[str],
             window: float = TOAST_WINDOW, interval: float = TOAST_POLL) -> list[str]:
-    """Tangkap pesan yang sempat muncul lalu hilang lagi setelah sebuah aksi.
+    """Tangkap SEMUA teks yang baru muncul setelah sebuah aksi.
 
     `read_source` adalah callable tanpa argumen yang mengembalikan XML layar --
     sengaja bukan objek driver, supaya bisa diuji tanpa Appium.
 
-    Pesan aplikasi di Driver Hub tampil sebagai toast yang hanya bertahan
-    ~2 detik. Pola "sleep lalu dump sekali" melewatkannya sepenuhnya: layar
-    tampak tidak bereaksi dan mudah salah disimpulkan sebagai tombol rusak.
-    Karena log jaringan di-strip pada build release, toast inilah satu-satunya
-    kanal tempat status server (mis. "Gagal: 403") terlihat sama sekali.
+    Pesan aplikasi di Driver Hub tampil sebagai toast yang cepat hilang. Pola
+    "sleep lalu dump sekali" melewatkannya sepenuhnya: layar tampak tidak
+    bereaksi dan mudah salah disimpulkan sebagai tombol rusak. Karena log
+    jaringan di-strip pada build release, toast inilah satu-satunya kanal
+    tempat status server (mis. "Gagal: 403") terlihat sama sekali.
+
+    Versi sebelumnya mengembalikan `appeared - last` -- hanya teks yang sempat
+    muncul LALU HILANG lagi. Itu keliru dan terbukti membuang justru temuan
+    yang dicari: pengukuran 14 Agu di Galaxy A52 menunjukkan toast "Gagal: 403"
+    bertahan ~3,5 detik (Toast.LENGTH_LONG), masih terpampang saat jendela 3
+    detik habis, sehingga ikut terbuang dan `observe()` mengembalikan daftar
+    kosong padahal pesannya jelas terbaca di tiap polling.
+
+    Sekarang: apa pun yang belum ada sebelum aksi dan muncul sesudahnya ikut
+    dikembalikan, tak peduli masih tampak atau tidak. Efek sampingnya justru
+    berguna -- pesan galat yang dirender menetap di layar (bukan toast) ikut
+    terbaca, dan penyaringan mana yang cacat adalah urusan Oracle.scan_ui(),
+    bukan urusan pembaca UI ini.
     """
     appeared: set[str] = set()
     seen = set(before)
-    last = set(before)
     deadline = time.time() + window
     while time.time() < deadline:
         time.sleep(interval)
         try:
-            last = all_texts(read_source())
+            now = all_texts(read_source())
         except Exception:
             break
-        appeared |= last - seen
-        seen |= last
-    return sorted(appeared - last)  # muncul lalu hilang = toast/snackbar
+        appeared |= now - seen
+        seen |= now
+    return sorted(appeared)

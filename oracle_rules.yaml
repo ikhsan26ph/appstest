@@ -1,14 +1,164 @@
 meta:
-  app: com.example.app          # ganti dengan package name sebenarnya
-  version: 1
+  app: com.phbid_darat.supir.stg
+  version: 2
+  # v2 (14 Agu 2026) ditulis ULANG di atas bukti, bukan tebakan. Sumbernya:
+  #   - 94.906 string DEX dari APK terpasang di Galaxy A52 (v2.1.1-stg)
+  #   - dump UI asli layar Registrasi (tests/fixtures/registrasi.xml)
+  #   - skema tabel profile_cache di DB internal aplikasi
+  # Setiap aturan di bawah ini punya jejak ke salah satu dari tiga sumber itu.
+  # Kalau tidak ada buktinya, aturannya TIDAK ditulis — lihat catatan `sim_number`.
 
 # ---------------------------------------------------------------
 # ORACLE IMPLISIT
-# Aktif untuk SELURUH langkah pengujian tanpa perlu dideklarasikan
-# per layar. Ini yang paling murah dan langsung memberi hasil.
+# Aktif untuk SELURUH langkah pengujian tanpa perlu dideklarasikan per layar.
+#
+# KENAPA BERBASIS UI, BUKAN LOG JARINGAN:
+# build ini release — log HTTP sudah di-strip; tidak ada satu pun baris
+# request/response di logcat. Satu-satunya kanal tempat status server terlihat
+# adalah toast di layar (format string `Gagal: ` + kode). Karena itu oracle
+# implisit membaca UI tree, dan logcat diturunkan perannya jadi pendeteksi
+# crash saja.
+#
+# Toast di app ini hidup ~2 detik, jadi pembacaannya harus lewat
+# uitree.observe() (polling 0,35 s), bukan sekali dump setelah sleep.
+#
+# Urutan pemeriksaan: ui_expected → ui_environment → ui_forbidden.
+# Yang pertama cocok menang, jadi allowlist selalu mengalahkan pola cacat.
 # ---------------------------------------------------------------
 implicit:
-  logcat_forbidden:
+
+  # --- ALLOWLIST: pesan yang membuktikan app BEKERJA BENAR ----------
+  # Tanpa daftar ini setiap uji nilai batas akan dilaporkan sebagai cacat,
+  # padahal penolakan input memang hasil yang diharapkan.
+  ui_expected:
+    - id: validasi_form
+      note: "validasi input — justru bukti app menolak nilai salah"
+      patterns:
+        - "^Nomor KTP harus 16 digit$"
+        - "^Nomor KTP tidak boleh kosong$"
+        - "^Nomor SIM tidak boleh kosong$"
+        - "^Nomor WhatsApp tidak (boleh kosong|valid)$"
+        - "^Nama tidak boleh kosong$"
+        - "^Alamat tidak boleh kosong$"
+        - "^Tanggal berlaku SIM belum dipilih$"
+        - "^Foto wajib untuk tahap ini$"
+        - "^(No\\. Resi Belum Diisi|Nomor resi belum diisi|resi belum diisi)$"
+        - "^Kode tidak sesuai\\. Periksa kembali\\.$"
+        - "^Format nomor tidak valid\\. Periksa kembali\\.$"
+        - "^Data tidak valid\\. Periksa kembali\\.$"
+
+    - id: empty_state
+      note: "layar kosong yang sah — bukan kegagalan memuat"
+      patterns:
+        - "^Belum Ada Notifikasi$"
+        - "^Belum ada penugasan$"
+        - "^Saat ini anda belum memiliki tugas aktif$"
+        - "^Penugasan ini (sudah selesai\\.|telah selesai)$"
+
+    - id: izin_dan_konfirmasi
+      note: "permintaan izin & konfirmasi, perilaku normal"
+      patterns:
+        - "^Izin kamera diperlukan untuk scan QR code / barcode\\.$"
+        - "^Aktifkan izin notifikasi terlebih dahulu untuk mengatur preferensi ini\\.$"
+        - "^Tekan sekali lagi untuk keluar$"
+        - "^Profil sudah pernah dilengkapi\\.$"
+
+    - id: sukses
+      note: "konfirmasi keberhasilan; `Notifikasi terkirim!` adalah PASS Test Push"
+      patterns:
+        - "^Notifikasi terkirim!$"
+        - "^Data berhasil disinkronkan$"
+        - "^Semua data sudah tersinkron$"
+        - "^Tersimpan, (akan dikirim saat online|sedang disinkronkan)$"
+
+  # --- LINGKUNGAN: bukan cacat app, tapi menodai hasil uji ---------
+  # Dilaporkan terpisah dengan severity `info`: kalau ini muncul, langkah
+  # ujinya tidak sah dan harus diulang saat jaringan sehat — bukan bug.
+  ui_environment:
+    - id: offline
+      severity: info
+      patterns:
+        - "^Tidak ada koneksi internet$"
+        - "^Anda sedang offline$"
+        - "^Terdapat masalah koneksi internet anda\\.$"
+        - "^Koneksi gagal\\. Periksa jaringan Anda\\.$"
+        - "^Menunggu jaringan\\.\\.\\.$"
+        - "^Data belum tersedia offline\\. Coba lagi saat terhubung internet\\.$"
+        - "^Data belum terkirim$"
+        - "^Nyalakan GPS untuk menyimpan data$"
+
+    - id: maintenance
+      severity: info
+      note: "server sengaja dimatikan; hentikan run, hasilnya tidak bermakna"
+      patterns:
+        - "^Sedang dalam Perbaikan$"
+        - "pemeliharaan sistem"
+
+  # --- POLA CACAT: kegagalan teknis yang sampai ke mata pengguna ----
+  ui_forbidden:
+    - id: gagal_kode_status
+      pattern: "^Gagal:\\s*(\\d{3})\\b"
+      severity: high
+      note: >-
+        format string `Gagal: ` + kode status. INI kanal satu-satunya status
+        HTTP di build release. Bug 14 Agu "Test Push 403" muncul persis begini
+        ("Gagal: 403"); aturan lama `HTTP (4xx|5xx)` tidak akan cocok karena
+        tidak ada literal "HTTP" di teks toast-nya.
+
+    - id: gagal_memuat
+      pattern: "^Gagal memuat\\b|^Tidak Dapat Memuat$"
+      severity: high
+      note: "Gagal memuat data/profil/detail penugasan/QR Code/penugasan"
+
+    - id: gagal_menulis
+      pattern: "^Gagal (menyimpan|mengirim|memproses|menyiapkan)\\b"
+      severity: high
+      note: "aksi tulis gagal — data pengguna berpotensi hilang"
+
+    - id: gagal_sinkron
+      pattern: "^Gagal Sinkron$|^Sinkronisasi gagal"
+      severity: high
+
+    - id: tidak_terkirim
+      pattern: "^Tidak terkirim:|^PERMANENT_FAIL"
+      severity: high
+
+    - id: respons_tidak_valid
+      pattern: "^Respons server tidak valid$|^Server error:"
+      severity: critical
+      note: "kontrak API pecah — client tidak bisa membaca respons server"
+
+    - id: pendaftaran_gagal
+      pattern: "^Pendaftaran gagal"
+      severity: high
+
+    - id: permintaan_ditolak
+      pattern: "^Permintaan ditolak\\. Coba lagi dalam beberapa menit\\.$"
+      severity: high
+      note: "penolakan sisi server tanpa sebab yang bisa dilihat pengguna"
+
+    - id: rate_limit
+      pattern: "^Terlalu banyak permintaan"
+      severity: medium
+      note: "sah dari sisi server, tapi kalau muncul di pemakaian normal berarti client terlalu cerewet"
+
+    - id: gambar_hilang
+      pattern: "^Gambar tidak ditemukan untuk salah satu update\\. Silakan ulangi\\.$"
+      severity: high
+      note: "file lampiran lenyap antara dipilih dan dikirim"
+
+    - id: sesi_terputus
+      pattern: "^Sesi Berakhir$|^Kamu telah logout karena login di perangkat lain|^Akun tidak ditemukan\\.$"
+      severity: high
+      kind: session
+      note: "sesi mati di tengah run — sisa langkah setelah ini tidak sah, hentikan"
+
+  # --- LOGCAT: HANYA crash ------------------------------------------
+  # Aturan lama (NullPointerException, SQLiteException, HTTP 4xx/5xx) dibuang:
+  # logcat di HP ini bercampur seluruh sistem, dan tanpa filter PID ketiganya
+  # memanen baris milik app lain. Yang tersisa adalah sinyal yang tidak
+  # mungkin salah baca. Saring per PID aplikasi sebelum dipanggil.
+  logcat_crash:
     - id: fatal_exception
       pattern: "FATAL EXCEPTION"
       severity: critical
@@ -16,127 +166,158 @@ implicit:
       pattern: "ANR in "
       severity: critical
     - id: native_crash
-      pattern: "signal 11 \\(SIGSEGV\\)"
+      pattern: "signal \\d+ \\(SIG[A-Z]+\\)"
       severity: critical
-    - id: unhandled_rejection
-      pattern: "UnhandledPromiseRejection"
-      severity: high
-    - id: sql_error
-      pattern: "SQLiteException"
-      severity: high
-    - id: npe
-      pattern: "NullPointerException"
-      severity: high
-    - id: network_error
-      pattern: "HTTP (4[0-9]{2}|5[0-9]{2})"
-      severity: medium
+    - id: process_died
+      pattern: "Process com\\.phbid_darat\\.supir\\.stg .* has died"
+      severity: critical
 
-  # endpoint yang memang SAH mengembalikan 4xx (mis. validasi server).
-  # tanpa allowlist ini Anda akan tenggelam di false positive.
-  http_allowlist:
-    - endpoint: "/api/v1/auth/login"
-      status: 401
-      note: "salah password memang 401"
+  # --- LOGCAT: kebocoran kredensial ---------------------------------
+  # Menggantikan invariant `no_credential_in_log` yang lama. App ini tidak
+  # punya password — kredensialnya adalah nomor WhatsApp + Kode Akses 6 digit
+  # (endpoint auth/request-pin & auth/verify-pin).
+  # Nomor asli TIDAK ditulis di repo. Isi lewat env var QA_PHONE saat run.
+  logcat_secret:
+    - id: kode_akses_bocor
+      pattern: "(?i)(kode|pin|otp|code)[^0-9]{0,12}\\b\\d{6}\\b"
+      severity: critical
+      note: "Kode Akses 6 digit tidak boleh pernah muncul di logcat"
+    - id: nomor_wa_bocor
+      from_env: QA_PHONE
+      severity: high
+      note: "nomor WhatsApp = identitas login; pola diisi dari env, bukan dari repo"
 
 # ---------------------------------------------------------------
 # ORACLE EKSPLISIT — SPESIFIKASI FIELD
-# type: numeric | alphanumeric | text | date | email | phone
-# Runner memakai spec ini untuk DUA hal sekaligus:
-#   1. membangkitkan nilai uji batas (generator)
-#   2. menilai apakah respons aplikasi benar (oracle)
+# type: numeric | alphanumeric | text | date | phone
+#
+# `label` menggantikan `selector`: aplikasi ini merender field sebagai
+# android.view.View tanpa resource-id, dengan TextView label terpisah di
+# atasnya (lihat tests/fixtures/registrasi.xml — keenam field tanpa id dan
+# tanpa hint). Selector berbasis id mustahil di sini.
+#
+# Label ditulis TANPA tanda `*`; di UI tanda wajib menyatu dalam satu TextView
+# ('Nomor KTP *'), jadi pencocokan harus menormalkan akhiran itu — dan
+# kehadirannya sekaligus penanda `required` yang bisa dibaca langsung dari UI.
 # ---------------------------------------------------------------
 fields:
   ktp:
     label: "Nomor KTP"
-    selector: "com.example:id/et_ktp"
     type: numeric
     length:
       exact: 16
     required: true
-    note: "bug ditemukan 14 Agt: field menerima 19 digit"
+    note: >-
+      16 bukan tebakan: string validasi harfiah "Nomor KTP harus 16 digit" ada
+      di DEX. Justru itu mempertajam bug 14 Agu — data tersimpan 19 digit,
+      jadi aturannya ada di kode tapi tidak ditegakkan di jalur penyimpanan.
 
   sim_number:
     label: "Nomor SIM"
-    selector: "com.example:id/et_sim"
     type: numeric
-    length:
-      exact: 12
     required: true
+    note: >-
+      TIDAK ADA aturan panjang di sini karena tidak ada di aplikasi — satu-satunya
+      validasi SIM di seluruh APK adalah "Nomor SIM tidak boleh kosong".
+      Tiga angka yang beredar saling bertentangan (YAML v1 menebak 12,
+      placeholder "Contoh: 1301012345678" 13 digit, data tersimpan 11 digit).
+      TEMUAN UNTUK PRODUK: nomor SIM tidak divalidasi panjangnya sama sekali.
 
   sim_expiry:
-    label: "Masa berlaku SIM"
-    selector: "com.example:id/et_sim_exp"
+    label: "Akhir Berlaku SIM"
     type: date
-    format: "%d-%m-%Y"
+    format: "%d/%m/%Y"
     must_be_future: true
     required: true
-    note: "bug ditemukan 14 Agt: SIM kedaluwarsa tetap diterima"
+    note: >-
+      Label & format dari dump asli: placeholder "Contoh: 31/12/2027", garis
+      miring — bukan "%d-%m-%Y". `must_be_future` adalah EKSPEKTASI, bukan
+      aturan yang sudah ada: satu-satunya validasi tanggal di APK adalah
+      "Tanggal berlaku SIM belum dipilih". Itu persis bug 14 Agu (SIM
+      kedaluwarsa tetap diterima).
 
   nama:
-    label: "Nama lengkap"
-    selector: "com.example:id/et_nama"
+    label: "Nama Sopir"
     type: text
-    length:
-      min: 3
-      max: 50
     required: true
+    note: >-
+      Label diperbaiki dari "Nama lengkap" (karangan v1). Batas min 3/max 50
+      dibuang: tidak ada dasarnya di kode, hanya "Nama tidak boleh kosong".
 
-  telepon:
-    label: "Nomor telepon"
-    selector: "com.example:id/et_telp"
+  whatsapp:
+    label: "Nomor WhatsApp"
     type: phone
-    length:
-      min: 10
-      max: 13
-    prefix_allowed: ["08", "+628"]
     required: true
+    note: >-
+      Dulu bernama `telepon`. Ini identitas login (endpoint auth/request-pin),
+      bukan nomor kontak biasa. `prefix_allowed` v1 (08/+628) dibuang: data
+      tersimpan di dump asli berformat "6285155070869" — tanpa 0 dan tanpa +.
+      Aturan prefix yang benar belum diketahui; jangan dikarang.
 
-  email:
-    label: "Email"
-    selector: "com.example:id/et_email"
-    type: email
-    required: false
+  alamat:
+    label: "Alamat"
+    type: text
+    required: true
+    note: "hilang dari v1 padahal wajib (bertanda * di form) dan ada di DB (kolom address)"
 
 # ---------------------------------------------------------------
 # ORACLE EKSPLISIT — INVARIANT LAYAR
-# Aturan yang berlaku pada kondisi layar, bukan pada satu field.
+#
+# Field `activity` DIBUANG: manifest hanya punya satu activity aplikasi
+# (com.phbid_darat.supir.MainActivity). Semua "layar" adalah view di dalamnya,
+# jadi layar dikenali dari teks yang tampak (`identified_by`), bukan activity.
+#
+# `observed` yang masuk ke check_screen berkunci LABEL, bukan resource-id.
 # ---------------------------------------------------------------
 screens:
-  pengirim:
-    activity: ".ui.PengirimActivity"
+  registrasi:
+    identified_by: ["Registrasi", "Nomor KTP"]
+    invariants:
+      - id: field_wajib_lengkap
+        type: min_count
+        label: "Nomor KTP"
+        value: 1
+
+  detail_penugasan:
+    identified_by: ["Pengirim"]
     invariants:
       - id: no_duplicate_sender
         type: unique_list
-        selector: "com.example:id/tv_nama_pengirim"
-        note: "bug ditemukan 14 Agt: pengirim muncul duplikat"
+        label: "Pengirim"
+        note: >-
+          bug 14 Agu: pengirim muncul duplikat. BELUM diverifikasi ulang di v2 —
+          belum ada dump layar ini di repo, jadi bentuk nilai di bawah label
+          "Pengirim" masih asumsi. Ambil dump-nya sebelum invariant ini dipercaya.
 
       - id: sender_list_not_empty
         type: min_count
-        selector: "com.example:id/tv_nama_pengirim"
+        label: "Pengirim"
         value: 1
 
-  login:
-    activity: ".ui.LoginActivity"
-    invariants:
-      - id: password_masked
-        type: attribute_equals
-        selector: "com.example:id/et_password"
-        attribute: "password"
-        value: "true"
-
-      - id: no_credential_in_log
-        type: logcat_absent
-        pattern: "password[\"']?\\s*[:=]"
-        severity: critical
+# Invariant `password_masked` DIHAPUS atas keputusan 14 Agu: app tidak punya
+# password, dan Kode Akses yang tampil terbuka di 6 kotak adalah pola lazim
+# untuk OTP — bukan cacat. `no_credential_in_log` pindah ke implicit.logcat_secret.
 
 # ---------------------------------------------------------------
 # AKSI TERLARANG — blacklist untuk crawler
-# Supaya eksplorasi otomatis tidak merusak sesi atau data.
+# Daftar v1 hampir seluruhnya meleset ("Logout", "Hapus", "Bayar" tidak ada
+# sebagai string di APK ini). Daftar di bawah diambil dari string DEX nyata.
 # ---------------------------------------------------------------
 crawler:
   forbidden_text:
-    ["Logout", "Keluar", "Hapus", "Delete", "Bayar", "Kirim Sekarang"]
-  forbidden_ids:
-    ["com.example:id/btn_logout", "com.example:id/btn_delete_account"]
+    - "Keluar Akun"          # Profil → Lihat Profil Saya; ini logout sebenarnya
+    - "Keluar dari akun"
+    - "Berangkat Muat"       # memajukan status order di server, tak bisa dibatalkan
+    - "Simpan"               # menyimpan perubahan tahap/profil
+    - "Lapor"                # membuat record Laporan Kendala
+    - "Tandai Sudah Dibaca"  # mengubah state notifikasi
+    # Tiga di bawah ini tambahan dari saya, bukan dari daftar 14 Agu.
+    # Alasannya sama beratnya: endpoint auth/login-approval/respond, dan
+    # string app-nya sendiri berbunyi "Jika disetujui, akun akan keluar dari
+    # perangkat yang sedang dipakai" — menekannya = logout perangkat uji.
+    - "Setujui"
+    - "Ya, ini saya"
+    - "Tolak"
+  forbidden_ids: []          # app ini nyaris tanpa resource-id; jangan andalkan id
   max_depth: 12
   max_steps: 300
