@@ -177,6 +177,18 @@ implicit:
   # punya password — kredensialnya adalah nomor WhatsApp + Kode Akses 6 digit
   # (endpoint auth/request-pin & auth/verify-pin).
   # Nomor asli TIDAK ditulis di repo. Isi lewat env var QA_PHONE saat run.
+  #
+  # DIVERIFIKASI 14 Agu 2026 dengan login sungguhan (logout → request-pin →
+  # verify-pin → Registrasi, 15.289 baris logcat): app TIDAK membocorkan
+  # apa pun. Nol kemunculan nomor maupun kode di baris milik aplikasi.
+  #
+  # Satu-satunya kebocoran datang dari tag `adbd`, dan itu ulah harness:
+  # `adb shell input text <nilai>` membuat adbd mencatat perintahnya utuh —
+  #     adbd: adbd service requested 'shell,v2,...,raw:input text 085…'
+  # Dua akibatnya: (1) saring logcat per PID aplikasi sebelum memanggil
+  # scan_logcat, kalau tidak harness sendiri yang tertuduh; (2) adapter
+  # Tahap 3 harus mengetik lewat endpoint element/value Appium, bukan
+  # `adb shell input text`, supaya nilai uji tidak ikut tercecer di log.
   logcat_secret:
     - id: kode_akses_bocor
       pattern: "(?i)(kode|pin|otp|code)[^0-9]{0,12}\\b\\d{6}\\b"
