@@ -23,8 +23,11 @@ import os
 import re
 import sys
 import time
-import xml.etree.ElementTree as ET
 from datetime import datetime
+
+# Pembacaan UI tree hidup di uitree.py — modul murni, tanpa Appium/LLM, dan
+# dipakai juga oleh alur deterministik (oracle/crawler) yang tidak butuh API key.
+from uitree import all_texts, observe, parse_elements
 
 try:
     from appium import webdriver
@@ -40,9 +43,6 @@ except ImportError:
 
 APPIUM_URL = os.environ.get("APPIUM_URL", "http://127.0.0.1:4723")
 MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5")
-BOUNDS_RE = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
-TOAST_POLL = 0.35   # interval polling; toast validasi hidup ~2 detik saja
-TOAST_WINDOW = 3.0  # lama memantau setelah tiap aksi
 
 SYSTEM_PROMPT = """\
 You are an autonomous QA tester exploring an Android app. Each turn you get a
@@ -91,131 +91,6 @@ def build_driver(args):
     if args.device:
         opts.device_name = args.device
     return webdriver.Remote(APPIUM_URL, options=opts)
-
-
-MAX_LABEL_GAP = 260  # px vertikal maksimum antara label dan field-nya
-
-
-def rect(bounds):
-    m = BOUNDS_RE.search(bounds or "")
-    if not m:
-        return None
-    return tuple(map(int, m.groups()))  # x1, y1, x2, y2
-
-
-def center(bounds):
-    r = rect(bounds)
-    return None if r is None else ((r[0] + r[2]) // 2, (r[1] + r[3]) // 2)
-
-
-def node_text(a):
-    return (a.get("text") or a.get("content-desc") or "").strip()
-
-
-def _inner_label(r, texts):
-    """Teks yang tergambar DI DALAM elemen: placeholder field, atau caption
-    tombol yang dirender sebagai TextView terpisah di dalam View kosong."""
-    best, best_area = "", None
-    for a, tr in texts:
-        cx, cy = (tr[0] + tr[2]) // 2, (tr[1] + tr[3]) // 2
-        if not (r[0] <= cx <= r[2] and r[1] <= cy <= r[3]):
-            continue
-        area = (tr[2] - tr[0]) * (tr[3] - tr[1])
-        if best_area is None or area < best_area:
-            best, best_area = node_text(a), area
-    return best
-
-
-def _label_above(r, texts):
-    """Label form biasanya TextView tepat di atas field-nya, bukan atribut
-    `hint` -- tanpa ini semua EditText terlihat anonim bagi agen."""
-    best, best_y = "", None
-    for a, tr in texts:
-        if tr[3] > r[1]:                      # harus berada di atas elemen
-            continue
-        if tr[2] <= r[0] or tr[0] >= r[2]:    # harus beririsan horizontal
-            continue
-        if r[1] - tr[3] > MAX_LABEL_GAP:
-            continue
-        if best_y is None or tr[3] > best_y:  # ambil yang paling dekat
-            best, best_y = node_text(a), tr[3]
-    return best
-
-
-def parse_elements(page_source):
-    """Ekstrak elemen interaktif, lengkap dengan label yang diturunkan dari
-    node teks di sekitarnya.
-
-    Driver Hub (dan app sejenis) merender tombol sebagai View kosong berisi
-    TextView, dan placeholder form sebagai TextView sibling -- bukan atribut
-    `hint`. Tanpa asosiasi ini agen cuma melihat deretan field tanpa nama dan
-    tidak bisa membedakan mana Nomor KTP dan mana Nomor SIM.
-    """
-    try:
-        root = ET.fromstring(page_source)
-    except ET.ParseError:
-        return []
-
-    nodes = []
-    for node in root.iter():
-        r = rect(node.attrib.get("bounds"))
-        if r:
-            nodes.append((node.attrib, r))
-
-    texts = [(a, r) for a, r in nodes if node_text(a)]
-
-    els = []
-    for a, r in nodes:
-        clickable = a.get("clickable") == "true"
-        editable = a.get("class", "").endswith("EditText")
-        if not (clickable or editable):
-            continue
-        own = node_text(a)
-        inner = "" if own else _inner_label(r, texts)
-        # Hanya field yang butuh label-di-atas; tombol sudah bernama lewat
-        # caption-nya sendiri, jadi label di atasnya cuma noise.
-        above = _label_above(r, texts) if editable else ""
-        els.append({
-            "index": len(els),
-            "text": (own or inner)[:60],
-            "label": above[:40],
-            "id": (a.get("resource-id") or "").split("/")[-1][:40],
-            "class": a.get("class", "").split(".")[-1],
-            "clickable": clickable,
-            "editable": editable,
-            "xy": ((r[0] + r[2]) // 2, (r[1] + r[3]) // 2),
-        })
-    return els
-
-
-def all_texts(page_source):
-    try:
-        root = ET.fromstring(page_source)
-    except ET.ParseError:
-        return set()
-    return {node_text(n.attrib) for n in root.iter() if node_text(n.attrib)}
-
-
-def observe(driver, before, window=TOAST_WINDOW, interval=TOAST_POLL):
-    """Tangkap pesan yang sempat muncul lalu hilang lagi setelah sebuah aksi.
-
-    Validasi Driver Hub tampil sebagai toast yang hanya bertahan ~2 detik.
-    Pola "sleep lalu dump sekali" melewatkannya sepenuhnya -- layar terlihat
-    tidak bereaksi dan agen salah menyimpulkan tombolnya rusak. Jadi kita
-    polling rapat, lalu ambil selisih terhadap snapshot terakhir.
-    """
-    appeared, seen = set(), set(before)
-    last = set(before)
-    deadline = time.time() + window
-    while time.time() < deadline:
-        time.sleep(interval)
-        try:
-            last = all_texts(driver.page_source)
-        except Exception:
-            break
-        appeared |= last - seen
-        seen |= last
-    return sorted(appeared - last)  # muncul lalu hilang = toast/snackbar
 
 
 def ask_claude(client, goal, elements, history):
@@ -339,7 +214,7 @@ def main():
 
             before_texts = all_texts(page)
             result = execute(driver, action, elements)
-            transient = observe(driver, before_texts)
+            transient = observe(lambda: driver.page_source, before_texts)
 
             line = f'step {step}: {action.get("action")} -> {result} | {action.get("reasoning","")}'
             if transient:

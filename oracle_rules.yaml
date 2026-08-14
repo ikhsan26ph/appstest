@@ -1,0 +1,142 @@
+meta:
+  app: com.example.app          # ganti dengan package name sebenarnya
+  version: 1
+
+# ---------------------------------------------------------------
+# ORACLE IMPLISIT
+# Aktif untuk SELURUH langkah pengujian tanpa perlu dideklarasikan
+# per layar. Ini yang paling murah dan langsung memberi hasil.
+# ---------------------------------------------------------------
+implicit:
+  logcat_forbidden:
+    - id: fatal_exception
+      pattern: "FATAL EXCEPTION"
+      severity: critical
+    - id: anr
+      pattern: "ANR in "
+      severity: critical
+    - id: native_crash
+      pattern: "signal 11 \\(SIGSEGV\\)"
+      severity: critical
+    - id: unhandled_rejection
+      pattern: "UnhandledPromiseRejection"
+      severity: high
+    - id: sql_error
+      pattern: "SQLiteException"
+      severity: high
+    - id: npe
+      pattern: "NullPointerException"
+      severity: high
+    - id: network_error
+      pattern: "HTTP (4[0-9]{2}|5[0-9]{2})"
+      severity: medium
+
+  # endpoint yang memang SAH mengembalikan 4xx (mis. validasi server).
+  # tanpa allowlist ini Anda akan tenggelam di false positive.
+  http_allowlist:
+    - endpoint: "/api/v1/auth/login"
+      status: 401
+      note: "salah password memang 401"
+
+# ---------------------------------------------------------------
+# ORACLE EKSPLISIT — SPESIFIKASI FIELD
+# type: numeric | alphanumeric | text | date | email | phone
+# Runner memakai spec ini untuk DUA hal sekaligus:
+#   1. membangkitkan nilai uji batas (generator)
+#   2. menilai apakah respons aplikasi benar (oracle)
+# ---------------------------------------------------------------
+fields:
+  ktp:
+    label: "Nomor KTP"
+    selector: "com.example:id/et_ktp"
+    type: numeric
+    length:
+      exact: 16
+    required: true
+    note: "bug ditemukan 14 Agt: field menerima 19 digit"
+
+  sim_number:
+    label: "Nomor SIM"
+    selector: "com.example:id/et_sim"
+    type: numeric
+    length:
+      exact: 12
+    required: true
+
+  sim_expiry:
+    label: "Masa berlaku SIM"
+    selector: "com.example:id/et_sim_exp"
+    type: date
+    format: "%d-%m-%Y"
+    must_be_future: true
+    required: true
+    note: "bug ditemukan 14 Agt: SIM kedaluwarsa tetap diterima"
+
+  nama:
+    label: "Nama lengkap"
+    selector: "com.example:id/et_nama"
+    type: text
+    length:
+      min: 3
+      max: 50
+    required: true
+
+  telepon:
+    label: "Nomor telepon"
+    selector: "com.example:id/et_telp"
+    type: phone
+    length:
+      min: 10
+      max: 13
+    prefix_allowed: ["08", "+628"]
+    required: true
+
+  email:
+    label: "Email"
+    selector: "com.example:id/et_email"
+    type: email
+    required: false
+
+# ---------------------------------------------------------------
+# ORACLE EKSPLISIT — INVARIANT LAYAR
+# Aturan yang berlaku pada kondisi layar, bukan pada satu field.
+# ---------------------------------------------------------------
+screens:
+  pengirim:
+    activity: ".ui.PengirimActivity"
+    invariants:
+      - id: no_duplicate_sender
+        type: unique_list
+        selector: "com.example:id/tv_nama_pengirim"
+        note: "bug ditemukan 14 Agt: pengirim muncul duplikat"
+
+      - id: sender_list_not_empty
+        type: min_count
+        selector: "com.example:id/tv_nama_pengirim"
+        value: 1
+
+  login:
+    activity: ".ui.LoginActivity"
+    invariants:
+      - id: password_masked
+        type: attribute_equals
+        selector: "com.example:id/et_password"
+        attribute: "password"
+        value: "true"
+
+      - id: no_credential_in_log
+        type: logcat_absent
+        pattern: "password[\"']?\\s*[:=]"
+        severity: critical
+
+# ---------------------------------------------------------------
+# AKSI TERLARANG — blacklist untuk crawler
+# Supaya eksplorasi otomatis tidak merusak sesi atau data.
+# ---------------------------------------------------------------
+crawler:
+  forbidden_text:
+    ["Logout", "Keluar", "Hapus", "Delete", "Bayar", "Kirim Sekarang"]
+  forbidden_ids:
+    ["com.example:id/btn_logout", "com.example:id/btn_delete_account"]
+  max_depth: 12
+  max_steps: 300
