@@ -53,6 +53,21 @@ implicit:
         - "^Format nomor tidak valid\\. Periksa kembali\\.$"
         - "^Data tidak valid\\. Periksa kembali\\.$"
 
+    - id: login_nomor_tak_terdaftar
+      menandakan: penolakan
+      note: >-
+        Dialog MODAL, bukan toast — perilaku baru v2.2.0-stg, diverifikasi
+        16 Agu 2026 dengan login sungguhan di Galaxy A52s (nomor uji
+        081234567890): submit "Masuk" dengan nomor tak terdaftar / belum
+        ditugaskan memunculkan dialog "Nomor Belum Terdaftar" yang MENETAP
+        sampai tombol "Mengerti" ditekan. Dua konsekuensi untuk harness:
+        (1) observe() pasti menangkapnya, tidak bergantung jendela toast;
+        (2) sesudah dinilai, dialog wajib ditutup lewat "Mengerti" — kalau
+        tidak, aksi berikutnya menekan dialog ini, bukan layar login.
+      patterns:
+        - "^Nomor Belum Terdaftar$"
+        - "^Nomor WhatsApp ini belum terdaftar karena belum ada tugas yang diberikan\\. Silakan hubungi admin perusahaan Anda\\.$"
+
     - id: empty_state
       note: "layar kosong yang sah — bukan kegagalan memuat"
       patterns:
@@ -294,6 +309,13 @@ fields:
 # `observed` yang masuk ke check_screen berkunci LABEL, bukan resource-id.
 # ---------------------------------------------------------------
 screens:
+  login:
+    identified_by: ["Selamat Datang!", "Login dengan nomor WhatsApp Anda"]
+    note: >-
+      Kedua teks dari dump asli layar login v2.2.0-stg (16 Agu 2026, A52s).
+      Tanpa entri ini classify() buta terhadap perpindahan layar saat menguji
+      login. Sengaja tanpa invariant: belum ada yang terverifikasi di layar ini.
+
   registrasi:
     identified_by: ["Registrasi", "Nomor KTP"]
     invariants:
