@@ -255,6 +255,11 @@ def seed_ftl(tanggal_muat: str, sopir_wa: str = "6283830011881",
     t = TmsSeed()
     t.login()
     tipe = tipe_pengiriman.upper()
+    if tipe == "MULTIPOINT":
+        # nama di UI web "Multipoint"; enum API-nya MULTIDROP_MULTIPICKUP
+        # (dibocorkan validator: "tipePengiriman wajib NORMAL/MULTIPICKUP/
+        # MULTIDROP/MULTIDROP_MULTIPICKUP untuk FTL")
+        tipe = "MULTIDROP_MULTIPICKUP"
     if tipe == "MULTIPICKUP":
         pengirim = [
             t.pihak_perusahaan("PT. H3 IK", urutan=0,
@@ -280,6 +285,26 @@ def seed_ftl(tanggal_muat: str, sopir_wa: str = "6283830011881",
                           drop_off_party_idx=0),
                  t.barang("Muatan QA drop 2", berat=500, ongkos=75000,
                           drop_off_party_idx=1)]
+    elif tipe == "MULTIDROP_MULTIPICKUP":
+        # tidak ada template di staging — hipotesis gabungan multipickup +
+        # multidrop (barang membawa pickupPartyIdx DAN dropOffPartyIdx),
+        # divalidasi empiris 17 Agu
+        pengirim = [
+            t.pihak_perusahaan("PT. H3 IK", urutan=0,
+                               droppoint_nama="IK - Semarang Oke"),
+            t.pihak_perusahaan("PT. H3 IK", urutan=1,
+                               droppoint_nama="IK - Kenjeran"),
+        ]
+        penerima = [
+            t.pihak_perusahaan("PT. H3 IK", urutan=0,
+                               droppoint_nama="IK - Bonbin"),
+            t.pihak_perusahaan("PT. H3 IK", urutan=1,
+                               droppoint_nama="IK - Toko Madura"),
+        ]
+        items = [t.barang("Muatan QA titik 1", berat=500, ongkos=75000,
+                          pickup_party_idx=0, drop_off_party_idx=0),
+                 t.barang("Muatan QA titik 2", berat=500, ongkos=75000,
+                          pickup_party_idx=1, drop_off_party_idx=1)]
     else:
         pengirim = [t.pihak_perusahaan("PT. H3 IK")]
         penerima = [t.pihak_individu("Alluka Fatimah Rahma", ALAMAT_RUNGKUT)]
