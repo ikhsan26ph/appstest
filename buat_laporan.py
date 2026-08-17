@@ -107,6 +107,26 @@ BUGS = [
      "kebetulan selalu mengirim nama"],
 ]
 
+BUGS.append(
+    ["BUG-005", "17/08/2026", "Backend App / API",
+     "Order FTL MULTIPICKUP tidak muncul di daftar tugas app sopir",
+     "HIGH", "OPEN", ENV_APP,
+     "1. Seed dua order FTL identik (sopir/armada/PIC/rute sama), beda "
+     "tipePengiriman: NORMAL vs MULTIPICKUP\n"
+     "2. Penugasan keduanya ke sopir yang sama\n"
+     "3. Buka app sopir, refresh berkali-kali",
+     "Order NORMAL (FTL6940683725) tampil + push FCM; order MULTIPICKUP "
+     "(FTL6941601827) TIDAK PERNAH tampil — padahal push FCM-nya "
+     "terkirim & diterima (dumpsys notification) dan web menandai "
+     "ASSIGNED",
+     "Semua order ter-assign tampil di daftar tugas sopir, konsisten "
+     "dengan push yang dikirim",
+     "Uji diferensial 17 Agu; order multipickup lama (FTL5469870495) "
+     "COMPLETED → dulu pernah bisa (indikasi regresi). Order repro "
+     "FTL6941601827 dibiarkan ASSIGNED di staging",
+     "Periksa filter GET api/v1/mobile/penugasan (apicore-staging) untuk "
+     "tipePengiriman MULTIPICKUP; sinkronkan kontrak list vs push"])
+
 PERILAKU = [
     ["Validasi resi terhadap data order",
      "Tahap ber-resi (LKL-LTL*, LKL-AFR*) menolak nilai karangan: "

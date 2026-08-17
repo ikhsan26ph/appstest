@@ -49,6 +49,25 @@ Perilaku yang DIKONFIRMASI BENAR (bukan bug, tercatat sebagai pengetahuan):
 Run 16 Agu (sesi lanjutan) menyelesaikan SELURUH 9 order; Beranda berakhir
 di empty state "Belum ada penugasan". Nol crash/ANR di semua sesi.
 
+## 5. Order FTL MULTIPICKUP tidak muncul di daftar tugas app sopir (HIGH)
+- **Ditemukan 17 Agu** dengan uji diferensial: dua order seed identik
+  (sopir, armada, PIC, rute, seeder yang sama) — `FTL6940683725`
+  (tipePengiriman NORMAL) tampil di app + push FCM; `FTL6941601827`
+  (MULTIPICKUP) TIDAK tampil (4x pull-to-refresh + relaunch), padahal:
+  - web menandai order/shipment ASSIGNED, assignment BELUM_BERANGKAT;
+  - **push FCM-nya TERKIRIM & DITERIMA** ("Anda menerima tugas pengiriman
+    pada nomor order LKL-FTL6941601827…") — dibuktikan dumpsys notification.
+- **Lokasi dugaan:** jalur daftar tugas — `GET api/v1/mobile/penugasan`
+  (backend app sopir: apicore-staging.prahu-hub.com) menyaring/melewatkan
+  order multipickup, atau parser client membuangnya. Jalur push dan jalur
+  list jelas tidak konsisten.
+- **Catatan regresi:** order multipickup lama (`FTL5469870495`) berstatus
+  COMPLETED — tipe ini pernah bisa dikerjakan lewat app.
+- **Dampak:** sopir dinotifikasi ada tugas, membuka app, tidak menemukan
+  apa-apa — pengiriman multipickup macet diam-diam.
+- **Bahan repro:** order `FTL6941601827` SENGAJA dibiarkan ASSIGNED di
+  staging untuk tim dev.
+
 ## 4. POST /api/orders tidak mendenormalisasi nama kota (API/UX, MEDIUM)
 - **Ditemukan 17 Agu** saat menyemai order via API (pilot `LTL6933610417`):
   `POST /orders` hanya mewajibkan `kotaAsalId`/`kotaTujuanId`; field
