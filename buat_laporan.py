@@ -126,8 +126,12 @@ PERILAKU = [
     ["Pencocokan tugas ke HP sopir",
      "Tugas muncul di HP yang nomornya = WA sub-user PIC "
      "(assignments[].subUserIds, master /sub-users) — bukan WA sopir."],
+    ["Push notifikasi penugasan (FCM)",
+     "Begitu penugasan dibuat di TMS, HP sopir menerima notifikasi 'Anda "
+     "menerima tugas pengiriman pada nomor order …' (terverifikasi 17 Agu "
+     "pada order seed LKL-FTL6940683725)."],
     ["Nol crash/ANR",
-     "Sepanjang seluruh run 16-17 Agu (11 order diselesaikan end-to-end) "
+     "Sepanjang seluruh run 16-17 Agu (12 order diselesaikan end-to-end) "
      "tidak ada FATAL EXCEPTION maupun ANR di logcat aplikasi."],
 ]
 

@@ -141,9 +141,12 @@ class TmsSeed(TmsWeb):
                       kota_asal_id: str, kota_tujuan_id: str,
                       tanggal_muat: str, harga: int = 150000,
                       catatan: str = "Seed QA otomatis",
-                      kota_asal_name: str = "", kota_tujuan_name: str = "") -> dict:
+                      kota_asal_name: str = "", kota_tujuan_name: str = "",
+                      extra: dict | None = None) -> dict:
         # nama kota ikut dikirim — backend tidak menurunkannya dari ID, dan
-        # shipment TIDAK bisa diubah lagi sesudah ditugaskan ke armada
+        # shipment TIDAK bisa diubah lagi sesudah ditugaskan ke armada.
+        # `extra`: field khusus per-serviceType (FTL: tipePengiriman,
+        # jenisArmadaId, jumlahArmada — lihat template SHP26080007).
         res = self._req_method("POST", "/shipments", {
             "serviceType": service,
             "kotaAsalId": kota_asal_id, "kotaTujuanId": kota_tujuan_id,
@@ -153,7 +156,7 @@ class TmsSeed(TmsWeb):
             "armadas": [{"harga": harga, "items": items}],
             "ppn": 0, "pph": 0, "hargaDPP": harga, "ppnAmount": 0,
             "pphAmount": 0, "totalNilaiBarang": 0, "asuransiAmount": 0,
-            "totalHarga": harga,
+            "totalHarga": harga, **(extra or {}),
         })
         return res["data"]
 
@@ -229,7 +232,34 @@ def seed_ltl(tanggal_muat: str, sopir_wa: str = "6283830011881") -> dict:
             "order_id": o["id"], "penugasan": p.get("id"), "resi": resi}
 
 
+def seed_ftl(tanggal_muat: str, sopir_wa: str = "6283830011881",
+             tipe_pengiriman: str = "NORMAL") -> dict:
+    """Rantai lengkap FTL (tipe pengiriman NORMAL/MULTIPICKUP/MULTIDROP/
+    MULTIPOINT). Beda dari LTL: tipePengiriman + jenisArmadaId + jumlahArmada
+    ikut di level shipment. FTL tidak ditagih resi di app."""
+    t = TmsSeed()
+    t.login()
+    pengirim = t.pihak_perusahaan("PT. H3 IK")
+    penerima = t.pihak_individu("Alluka Fatimah Rahma", ALAMAT_RUNGKUT)
+    ja = t.jenis_armada("Tronton Wing Box1")
+    items = [t.barang("Muatan penuh QA", berat=1000, ongkos=150000)]
+    sh = t.buat_shipment("FTL", [pengirim], [penerima], items,
+                         pengirim["cityId"], penerima["cityId"], tanggal_muat,
+                         kota_asal_name="Kota Semarang",
+                         kota_tujuan_name="Kota Surabaya",
+                         extra={"tipePengiriman": tipe_pengiriman,
+                                "jenisArmadaId": ja, "jumlahArmada": 1})
+    o = t.buat_order(sh["id"], "FTL", pengirim["cityId"], penerima["cityId"],
+                     tanggal_muat, ja, kota_asal_name="Kota Semarang",
+                     kota_tujuan_name="Kota Surabaya")
+    p = t.buat_penugasan(o["id"], sopir_wa, sopir_wa, ja)
+    return {"shipment": sh["shipmentCode"], "order": o["orderCode"],
+            "order_id": o["id"], "penugasan": p.get("id")}
+
+
 if __name__ == "__main__":
     import sys
-    tgl = sys.argv[1] if len(sys.argv) > 1 else "2026-08-19T17:00:00.000Z"
-    print(json.dumps(seed_ltl(tgl), ensure_ascii=False, indent=1))
+    jenis = (sys.argv[1] if len(sys.argv) > 1 else "ltl").lower()
+    tgl = sys.argv[2] if len(sys.argv) > 2 else "2026-08-20T17:00:00.000Z"
+    fn = {"ltl": seed_ltl, "ftl": seed_ftl}[jenis]
+    print(json.dumps(fn(tgl), ensure_ascii=False, indent=1))

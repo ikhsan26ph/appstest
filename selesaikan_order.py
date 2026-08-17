@@ -112,11 +112,28 @@ def screenshot(nama):
         f.write(base64.b64decode(b64))
 
 
+def aktifkan_app():
+    """Bawa app ke depan tanpa menebak berapa kali Back — Back buta pernah
+    keluar sampai launcher dan loop mengira order hilang."""
+    try:
+        io._sess("POST", "/appium/device/activate_app", {"appId": PKG})
+    except Exception:
+        pass
+    time.sleep(3.0)
+
+
 def tutup_modal():
     for _ in range(8):
         src = io.source()
         texts = uitree.all_texts(src)
         els = uitree.parse_elements(src)
+        # panel notifikasi menutupi app (pernah menipu loop jadi "order
+        # hilang"): tandanya tombol Clear/Notification settings sistem
+        if "Notification settings" in texts or "Brightness settings panel" in texts:
+            print("   (panel notifikasi terbuka — tutup dengan Back)")
+            io.back()
+            time.sleep(1.5)
+            continue
         if "Aktifkan Autostart" in texts:
             io.back(); time.sleep(1.3)
             if "Aktifkan Autostart" in uitree.all_texts(io.source()):
@@ -275,9 +292,14 @@ def sinkron():
 for putaran in range(1, MAX_PUTARAN + 1):
     print(f"\n===== PUTARAN {putaran} — {TARGET_ID} =====")
     tutup_modal()
-    if "Beranda" not in uitree.all_texts(io.source()):
-        print("   (bukan Beranda — Back dulu)")
-        io.back(); time.sleep(1.5)
+    texts_awal = uitree.all_texts(io.source())
+    if "Beranda" not in texts_awal:
+        if "Detail Tracking" in texts_awal:
+            print("   (masih di Detail Tracking — Back ke Beranda)")
+            io.back(); time.sleep(1.5)
+        else:
+            print("   (bukan layar app — aktifkan app)")
+            aktifkan_app()
         tutup_modal()
     ke_atas()
     swipe(-900, ms=500)          # pull-to-refresh: daftar bisa basi
@@ -307,8 +329,15 @@ for putaran in range(1, MAX_PUTARAN + 1):
         print("!! bukan Detail Tracking; teks:", sorted(texts)[:10])
         screenshot(f"nyasar_{TARGET_ID}_{putaran}.png")
         break
-    m = peta()
-    id_form = next((t for t, r in m if ID_RE.match(t)), "")
+    # konten form dimuat dari jaringan — ID bisa telat beberapa detik;
+    # menghakimi terlalu cepat membuat form sah dibatalkan sebagai salah kartu
+    id_form = ""
+    for _ in range(6):
+        m = peta()
+        id_form = next((t for t, r in m if ID_RE.match(t)), "")
+        if id_form:
+            break
+        time.sleep(1.5)
     if id_form != TARGET_ID:
         print(f"!! ID di form {id_form!r} ≠ {TARGET_ID} — BATAL, mundur")
         screenshot(f"salah_kartu_{TARGET_ID}_{putaran}.png")
