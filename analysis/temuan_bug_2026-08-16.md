@@ -77,6 +77,10 @@ ASSIGNED di staging.
 - **Adendum (17 Agu sore):** order MULTIDROP (`FTL6944366042`) tampil
   SEKETIKA — keterlambatan tidak menimpa semua tipe multi; spesifik
   MULTIPICKUP atau intermiten. Data point tambahan untuk dev.
+- **Adendum 2 (17 Agu, run regresi 4 varian):** multipickup ketiga
+  (`FTL6947275640`) tampil SEKETIKA — keterlambatan terkonfirmasi
+  INTERMITEN (1 dari 3 kejadian multipickup), bukan deterministik per
+  tipe. Kandidat: race/cache di materialisasi daftar tugas.
 
 ## 4. POST /api/orders tidak mendenormalisasi nama kota (API/UX, MEDIUM)
 - **Ditemukan 17 Agu** saat menyemai order via API (pilot `LTL6933610417`):
