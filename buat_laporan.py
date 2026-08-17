@@ -166,6 +166,12 @@ PERILAKU = [
      "'Multipickup - Multidrop', tampil seketika di app. Terverifikasi "
      "penuh pada FTL6945224841 — melengkapi matriks FTL: Normal/"
      "Multipickup/Multidrop/Multipoint semuanya teruji end-to-end."],
+    ["FCL/LCL tidak masuk app sopir (by design)",
+     "Konfirmasi produk 17 Agu: order moda laut dikerjakan dari web, bukan "
+     "app sopir — penugasan FCL ASSIGNED memang tanpa push FCM dan tanpa "
+     "kartu di HP. Seeder (seed_fcl) mendukung rantai FCL sampai ASSIGNED "
+     "untuk pengujian sisi web; kontrak unit FCL: armada+sopir+"
+     "jenisKontainerId (kontainer saja juga diterima validator)."],
     ["Push notifikasi penugasan (FCM)",
      "Begitu penugasan dibuat di TMS, HP sopir menerima notifikasi 'Anda "
      "menerima tugas pengiriman pada nomor order …' (terverifikasi 17 Agu "

@@ -183,14 +183,23 @@ class TmsSeed(TmsWeb):
         return res["data"]
 
     def buat_penugasan(self, order_id: str, sopir_wa: str, subuser_wa: str,
-                       jenis_armada_id: str) -> dict:
-        sopir = self.sopir_by_wa(sopir_wa)
+                       jenis_armada_id: str | None = None,
+                       unit_extra: dict | None = None) -> dict:
+        """Unit assignment per moda: darat (FTL/LTL) pakai armadaId dari
+        `jenis_armada_id`; laut (FCL) pakai `unit_extra` mis.
+        {"jenisKontainerId": …} — validator: "FCL wajib jenisKontainerId"."""
         su = self.subuser_by_wa(subuser_wa)
-        unit = self.armada_berjenis(jenis_armada_id)
+        a = {"urutan": 1, "subUserIds": [su["id"]]}
+        if jenis_armada_id:
+            # sopirId HANYA sah bersama armadaId ("sopirId hanya boleh diisi
+            # jika armadaId juga diisi") — unit kontainer (FCL) tanpa sopir;
+            # tugas tetap sampai ke HP lewat WA sub-user PIC
+            a["armadaId"] = self.armada_berjenis(jenis_armada_id)["id"]
+            a["sopirId"] = self.sopir_by_wa(sopir_wa)["id"]
+        if unit_extra:
+            a.update(unit_extra)
         res = self._req_method("POST", "/penugasan", {
-            "orderId": order_id,
-            "assignments": [{"urutan": 1, "sopirId": sopir["id"],
-                             "armadaId": unit["id"], "subUserIds": [su["id"]]}],
+            "orderId": order_id, "assignments": [a],
         })
         return res["data"]
 
@@ -326,6 +335,77 @@ def seed_ftl(tanggal_muat: str, sopir_wa: str = "6283830011881",
             "order_id": o["id"], "penugasan": p.get("id")}
 
 
+def seed_fcl(tanggal_muat: str, sopir_wa: str = "6283830011881") -> dict:
+    """Rantai lengkap FCL Normal (laut, rute lazim Surabaya→Balikpapan).
+
+    Beda kontrak dari FTL (dipetakan dari SHP26070422 + order FCL5723465748):
+    - shipment: pelabuhanAsal/Tujuan + jenisKontainer + jumlahArmada,
+      TANPA jenisArmadaId;
+    - order: + jenisJadwal (DIRECT), pelayaranId, namaKapal, voyage,
+      closingTime, etd, eta — jenisArmadaId null.
+    """
+    t = TmsSeed()
+    t.login()
+    pengirim = t.pihak_perusahaan("PT. H3 IK", urutan=0,
+                                  droppoint_nama="IK - Kenjeran")
+    penerima = t.pihak_perusahaan("PT. H3 IK", urutan=0,
+                                  droppoint_nama="IK - Balikpapan")
+    items = [t.barang("Muatan kontainer QA", berat=1000, ongkos=150000)]
+
+    def master(path, nama, kunci="name"):
+        for x in t._pages(path):
+            if x.get(kunci, "").strip().casefold() == nama.casefold():
+                return x
+        raise RuntimeError(f"{nama!r} tidak ada di {path}")
+
+    p_asal = master("/pelabuhans", "Tanjung Perak")
+    p_tujuan = master("/pelabuhans", "Balikpapan")
+    kontainer = master("/jenis-kontainers", "20 Feet")
+    pelayaran = master("/pelayarans", "SPIL")
+
+    laut = {
+        "pelabuhanAsalId": p_asal["id"], "pelabuhanAsalName": p_asal["name"],
+        "pelabuhanTujuanId": p_tujuan["id"],
+        "pelabuhanTujuanName": p_tujuan["name"],
+        "jenisKontainerId": kontainer["id"],
+        "jenisKontainerName": kontainer["name"],
+    }
+    sh = t.buat_shipment("FCL", [pengirim], [penerima], items,
+                         pengirim["cityId"], penerima["cityId"], tanggal_muat,
+                         kota_asal_name="Kota Surabaya",
+                         kota_tujuan_name="Kota Balikpapan",
+                         extra={"tipePengiriman": "NORMAL",
+                                "jumlahArmada": 1, **laut})
+    # jadwal kapal: closing sehari sebelum muat, ETD +1, ETA +4
+    import datetime
+    muat = datetime.datetime.fromisoformat(tanggal_muat.replace("Z", "+00:00"))
+    fmt = "%Y-%m-%dT%H:%M:%S.000Z"
+    o = t._req_method("POST", "/orders", {
+        "serviceType": "FCL",
+        "kotaAsalId": pengirim["cityId"], "kotaTujuanId": penerima["cityId"],
+        "kotaAsalName": "Kota Surabaya", "kotaTujuanName": "Kota Balikpapan",
+        "tanggalMuat": tanggal_muat,
+        "shipmentId": sh["id"], "shipmentIds": [sh["id"]],
+        "jenisJadwal": "DIRECT",
+        "pelayaranId": pelayaran["id"], "pelayaranName": pelayaran["name"],
+        "namaKapal": "KM QA SATU", "voyage": "001",
+        "closingTime": (muat - datetime.timedelta(days=1)).strftime(fmt),
+        "etd": (muat + datetime.timedelta(days=1)).strftime(fmt),
+        "eta": (muat + datetime.timedelta(days=4)).strftime(fmt),
+        **laut,
+    })["data"]
+    # unit FCL = armada + sopir + kontainer sekaligus (kontainer saja juga
+    # diterima validator). CATATAN BY-DESIGN (konfirmasi user 17 Agu):
+    # order FCL/LCL TIDAK masuk app sopir — moda laut dikerjakan dari web,
+    # jadi rantai seed ini berhenti sah di status ASSIGNED (tanpa push FCM,
+    # tanpa kartu di HP; itu bukan bug).
+    p = t.buat_penugasan(o["id"], sopir_wa, sopir_wa,
+                         jenis_armada_id=t.jenis_armada("Tronton Wing Box1"),
+                         unit_extra={"jenisKontainerId": kontainer["id"]})
+    return {"shipment": sh["shipmentCode"], "order": o["orderCode"],
+            "order_id": o["id"], "penugasan": p.get("id")}
+
+
 if __name__ == "__main__":
     import sys
     jenis = (sys.argv[1] if len(sys.argv) > 1 else "ltl").lower()
@@ -333,5 +413,5 @@ if __name__ == "__main__":
     if jenis.startswith("ftl-"):
         hasil = seed_ftl(tgl, tipe_pengiriman=jenis.split("-", 1)[1].upper())
     else:
-        hasil = {"ltl": seed_ltl, "ftl": seed_ftl}[jenis](tgl)
+        hasil = {"ltl": seed_ltl, "ftl": seed_ftl, "fcl": seed_fcl}[jenis](tgl)
     print(json.dumps(hasil, ensure_ascii=False, indent=1))

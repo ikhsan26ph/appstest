@@ -49,6 +49,12 @@ Perilaku yang DIKONFIRMASI BENAR (bukan bug, tercatat sebagai pengetahuan):
 Run 16 Agu (sesi lanjutan) menyelesaikan SELURUH 9 order; Beranda berakhir
 di empty state "Belum ada penugasan". Nol crash/ANR di semua sesi.
 
+Catatan 17 Agu (FCL): order FCL/LCL BY DESIGN tidak masuk app sopir
+(konfirmasi produk) — dikerjakan dari web. Rantai seed FCL
+(SHP26080016 → FCL6946354601) sah berhenti di ASSIGNED; dua order uji FCL
+(FCL6946138049 unit kontainer-saja, FCL6946354601 unit lengkap) ditinggal
+ASSIGNED di staging.
+
 ## 5. Order FTL MULTIPICKUP terlambat tampil di daftar tugas app (±1 jam) (HIGH → direvisi)
 - **Kronologi 17 Agu (uji diferensial, dua order seed identik kecuali
   tipePengiriman):**
