@@ -49,24 +49,25 @@ Perilaku yang DIKONFIRMASI BENAR (bukan bug, tercatat sebagai pengetahuan):
 Run 16 Agu (sesi lanjutan) menyelesaikan SELURUH 9 order; Beranda berakhir
 di empty state "Belum ada penugasan". Nol crash/ANR di semua sesi.
 
-## 5. Order FTL MULTIPICKUP tidak muncul di daftar tugas app sopir (HIGH)
-- **Ditemukan 17 Agu** dengan uji diferensial: dua order seed identik
-  (sopir, armada, PIC, rute, seeder yang sama) — `FTL6940683725`
-  (tipePengiriman NORMAL) tampil di app + push FCM; `FTL6941601827`
-  (MULTIPICKUP) TIDAK tampil (4x pull-to-refresh + relaunch), padahal:
-  - web menandai order/shipment ASSIGNED, assignment BELUM_BERANGKAT;
-  - **push FCM-nya TERKIRIM & DITERIMA** ("Anda menerima tugas pengiriman
-    pada nomor order LKL-FTL6941601827…") — dibuktikan dumpsys notification.
-- **Lokasi dugaan:** jalur daftar tugas — `GET api/v1/mobile/penugasan`
-  (backend app sopir: apicore-staging.prahu-hub.com) menyaring/melewatkan
-  order multipickup, atau parser client membuangnya. Jalur push dan jalur
-  list jelas tidak konsisten.
-- **Catatan regresi:** order multipickup lama (`FTL5469870495`) berstatus
-  COMPLETED — tipe ini pernah bisa dikerjakan lewat app.
-- **Dampak:** sopir dinotifikasi ada tugas, membuka app, tidak menemukan
-  apa-apa — pengiriman multipickup macet diam-diam.
-- **Bahan repro:** order `FTL6941601827` SENGAJA dibiarkan ASSIGNED di
-  staging untuk tim dev.
+## 5. Order FTL MULTIPICKUP terlambat tampil di daftar tugas app (±1 jam) (HIGH → direvisi)
+- **Kronologi 17 Agu (uji diferensial, dua order seed identik kecuali
+  tipePengiriman):**
+  - `FTL6940683725` (NORMAL): tampil di app DALAM HITUNGAN DETIK + push FCM.
+  - `FTL6941601827` (MULTIPICKUP, dibuat ±11:37): push FCM langsung
+    terkirim & diterima, web ASSIGNED — tapi daftar tugas app KOSONG
+    selama ±1 jam (4x pull-to-refresh + relaunch, sopir & PIC terverifikasi
+    identik dengan order NORMAL).
+  - ±12:40: order multipickup KEDUA (`FTL6942920480`) dibuat — dan KEDUA
+    order multipickup tiba-tiba tampil bersamaan.
+- **Revisi kesimpulan:** bukan hilang permanen, tapi TERLAMBAT tampil.
+  Konsisten dengan cache/materialisasi tertunda di jalur
+  `GET api/v1/mobile/penugasan` (apicore-staging) khusus tipe multipickup,
+  atau flush yang baru terpicu oleh penugasan berikutnya. Jalur push dan
+  jalur list tetap tidak konsisten — itu inti cacatnya.
+- **Dampak:** di jendela keterlambatan, sopir dinotifikasi ada tugas,
+  membuka app, dan tidak menemukan apa-apa.
+- **Sesudah tampil, siklusnya normal:** `FTL6942920480` diselesaikan penuh
+  6 tahap (muat per titik ×2 + bongkar) tanpa kendala.
 
 ## 4. POST /api/orders tidak mendenormalisasi nama kota (API/UX, MEDIUM)
 - **Ditemukan 17 Agu** saat menyemai order via API (pilot `LTL6933610417`):

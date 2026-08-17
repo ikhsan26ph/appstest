@@ -109,23 +109,24 @@ BUGS = [
 
 BUGS.append(
     ["BUG-005", "17/08/2026", "Backend App / API",
-     "Order FTL MULTIPICKUP tidak muncul di daftar tugas app sopir",
+     "Order FTL MULTIPICKUP terlambat tampil (±1 jam) di daftar tugas app",
      "HIGH", "OPEN", ENV_APP,
      "1. Seed dua order FTL identik (sopir/armada/PIC/rute sama), beda "
      "tipePengiriman: NORMAL vs MULTIPICKUP\n"
      "2. Penugasan keduanya ke sopir yang sama\n"
-     "3. Buka app sopir, refresh berkali-kali",
-     "Order NORMAL (FTL6940683725) tampil + push FCM; order MULTIPICKUP "
-     "(FTL6941601827) TIDAK PERNAH tampil — padahal push FCM-nya "
-     "terkirim & diterima (dumpsys notification) dan web menandai "
-     "ASSIGNED",
-     "Semua order ter-assign tampil di daftar tugas sopir, konsisten "
-     "dengan push yang dikirim",
-     "Uji diferensial 17 Agu; order multipickup lama (FTL5469870495) "
-     "COMPLETED → dulu pernah bisa (indikasi regresi). Order repro "
-     "FTL6941601827 dibiarkan ASSIGNED di staging",
-     "Periksa filter GET api/v1/mobile/penugasan (apicore-staging) untuk "
-     "tipePengiriman MULTIPICKUP; sinkronkan kontrak list vs push"])
+     "3. Buka app sopir, refresh berkali-kali; pantau selama 1 jam",
+     "NORMAL (FTL6940683725) tampil dalam hitungan detik + push FCM; "
+     "MULTIPICKUP (FTL6941601827) push-nya langsung diterima tapi daftar "
+     "tugas kosong ±1 jam — baru tampil bersamaan saat order multipickup "
+     "kedua (FTL6942920480) dibuat",
+     "Daftar tugas konsisten dengan push: order ter-assign tampil "
+     "seketika, apa pun tipePengiriman-nya",
+     "Uji diferensial + kronologi 17 Agu; sopir & PIC terverifikasi "
+     "identik. Sesudah tampil, siklus multipickup normal (6 tahap, muat "
+     "per titik)",
+     "Periksa cache/materialisasi GET api/v1/mobile/penugasan "
+     "(apicore-staging) untuk MULTIPICKUP; samakan latensi list dengan "
+     "push"])
 
 PERILAKU = [
     ["Validasi resi terhadap data order",
@@ -146,6 +147,10 @@ PERILAKU = [
     ["Pencocokan tugas ke HP sopir",
      "Tugas muncul di HP yang nomornya = WA sub-user PIC "
      "(assignments[].subUserIds, master /sub-users) — bukan WA sopir."],
+    ["Siklus multipickup: muat per titik",
+     "Order MULTIPICKUP menjalani Berangkat/Selesai Muat SATU KALI PER "
+     "titik muat (2 titik = 6 tahap total), judul kartu 'Multipickup - "
+     "<kota tujuan>'. Terverifikasi penuh pada FTL6942920480."],
     ["Push notifikasi penugasan (FCM)",
      "Begitu penugasan dibuat di TMS, HP sopir menerima notifikasi 'Anda "
      "menerima tugas pengiriman pada nomor order …' (terverifikasi 17 Agu "
