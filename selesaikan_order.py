@@ -368,6 +368,30 @@ for putaran in range(1, MAX_PUTARAN + 1):
             print("!! gagal mengisi No. Resi — berhenti")
             break
 
+    # multidrop: tahap "Berangkat Bongkar" menuntut alamat tujuan dipilih
+    # dulu ("Pilih alamat tujuan terlebih dahulu") — pemicunya elemen
+    # "Pilih Alamat", opsinya bottom-sheet berisi alamat tiap titik drop.
+    # Pilih yang PERTAMA; server yang tahu giliran drop mana yang sah.
+    els = uitree.parse_elements(io.source())
+    pa = uitree.find_tappable(els, "Pilih Alamat")
+    if pa is None:
+        swipe(-800)
+        els = uitree.parse_elements(io.source())
+        pa = uitree.find_tappable(els, "Pilih Alamat")
+    if pa:
+        io.tap(*pa["xy"]); time.sleep(1.8)
+        opsi = [e for e in uitree.parse_elements(io.source())
+                if e["clickable"] and len(e["text"]) > 25
+                and e["text"] != "Pilih Alamat"]
+        if opsi:
+            print(f"   pilih alamat tujuan: {opsi[0]['text'][:55]!r}")
+            io.tap(*opsi[0]["xy"]); time.sleep(1.5)
+        else:
+            print("!! sheet Pilih Alamat tanpa opsi — berhenti")
+            screenshot(f"alamat_kosong_{TARGET_ID}_{putaran}.png")
+            io.back(); time.sleep(1.2)
+            break
+
     els = uitree.parse_elements(io.source())
     simpan = uitree.find_tappable(els, "Simpan")
     if simpan is None:

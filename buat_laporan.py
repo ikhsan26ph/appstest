@@ -151,6 +151,14 @@ PERILAKU = [
      "Order MULTIPICKUP menjalani Berangkat/Selesai Muat SATU KALI PER "
      "titik muat (2 titik = 6 tahap total), judul kartu 'Multipickup - "
      "<kota tujuan>'. Terverifikasi penuh pada FTL6942920480."],
+    ["Siklus multidrop: bongkar per titik + pemilih alamat",
+     "Order MULTIDROP: 1x siklus muat lalu Berangkat/Selesai Bongkar per "
+     "titik drop; Berangkat Bongkar menuntut 'Pilih Alamat' (bottom-sheet "
+     "alamat tiap drop; validasi 'Pilih alamat tujuan terlebih dahulu'), "
+     "dan titik TERAKHIR dipilih otomatis. Judul kartu '<kota asal> - "
+     "Multidrop'. Muncul SEKETIKA di app (keterlambatan BUG-005 tidak "
+     "terjadi — spesifik multipickup/intermiten). Terverifikasi penuh "
+     "pada FTL6944366042."],
     ["Push notifikasi penugasan (FCM)",
      "Begitu penugasan dibuat di TMS, HP sopir menerima notifikasi 'Anda "
      "menerima tugas pengiriman pada nomor order …' (terverifikasi 17 Agu "

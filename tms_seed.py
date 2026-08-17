@@ -196,15 +196,20 @@ class TmsSeed(TmsWeb):
 
     @staticmethod
     def barang(nama: str, berat: int = 2, jumlah: int = 1,
-               ongkos: int = 75000, pickup_party_idx: int | None = None) -> dict:
+               ongkos: int = 75000, pickup_party_idx: int | None = None,
+               drop_off_party_idx: int | None = None) -> dict:
         """`pickup_party_idx`: indeks pengirim[] pemilik barang — WAJIB pada
-        tipe MULTIPICKUP (template SHP26070432), tidak ada pada NORMAL."""
+        MULTIPICKUP (template SHP26070432). `drop_off_party_idx`: indeks
+        penerima[] tujuan barang — WAJIB pada MULTIDROP (template
+        SHP26080002, kuncinya `dropOffPartyIdx`). NORMAL tanpa keduanya."""
         b = {"jenisBarang": nama, "kemasan": "Sak", "jumlah": jumlah,
              "berat": berat, "panjangCm": 10, "lebarCm": 10, "tinggiCm": 10,
              "kubikasiM3": None, "nilaiBarang": 0, "withInsurance": False,
              "ongkosKirim": ongkos}
         if pickup_party_idx is not None:
             b["pickupPartyIdx"] = pickup_party_idx
+        if drop_off_party_idx is not None:
+            b["dropOffPartyIdx"] = drop_off_party_idx
         return b
 
 
@@ -249,30 +254,46 @@ def seed_ftl(tanggal_muat: str, sopir_wa: str = "6283830011881",
     titik muatnya lewat `pickupPartyIdx`. FTL tidak ditagih resi di app."""
     t = TmsSeed()
     t.login()
-    multipickup = tipe_pengiriman.upper() == "MULTIPICKUP"
-    if multipickup:
+    tipe = tipe_pengiriman.upper()
+    if tipe == "MULTIPICKUP":
         pengirim = [
             t.pihak_perusahaan("PT. H3 IK", urutan=0,
                                droppoint_nama="IK - Semarang Oke"),
             t.pihak_perusahaan("PT. H3 IK", urutan=1,
                                droppoint_nama="IK - Kenjeran"),
         ]
+        penerima = [t.pihak_individu("Alluka Fatimah Rahma", ALAMAT_RUNGKUT)]
         items = [t.barang("Muatan QA titik 1", berat=500, ongkos=75000,
                           pickup_party_idx=0),
                  t.barang("Muatan QA titik 2", berat=500, ongkos=75000,
                           pickup_party_idx=1)]
+    elif tipe == "MULTIDROP":
+        pengirim = [t.pihak_perusahaan("PT. H3 IK", urutan=0,
+                                       droppoint_nama="IK - Semarang Oke")]
+        penerima = [
+            t.pihak_perusahaan("PT. H3 IK", urutan=0,
+                               droppoint_nama="IK - Kenjeran"),
+            t.pihak_perusahaan("PT. H3 IK", urutan=1,
+                               droppoint_nama="IK - Bonbin"),
+        ]
+        items = [t.barang("Muatan QA drop 1", berat=500, ongkos=75000,
+                          drop_off_party_idx=0),
+                 t.barang("Muatan QA drop 2", berat=500, ongkos=75000,
+                          drop_off_party_idx=1)]
     else:
         pengirim = [t.pihak_perusahaan("PT. H3 IK")]
+        penerima = [t.pihak_individu("Alluka Fatimah Rahma", ALAMAT_RUNGKUT)]
         items = [t.barang("Muatan penuh QA", berat=1000, ongkos=150000)]
-    penerima = t.pihak_individu("Alluka Fatimah Rahma", ALAMAT_RUNGKUT)
     ja = t.jenis_armada("Tronton Wing Box1")
-    sh = t.buat_shipment("FTL", pengirim, [penerima], items,
-                         pengirim[0]["cityId"], penerima["cityId"], tanggal_muat,
+    sh = t.buat_shipment("FTL", pengirim, penerima, items,
+                         pengirim[0]["cityId"], penerima[0]["cityId"],
+                         tanggal_muat,
                          kota_asal_name="Kota Semarang",
                          kota_tujuan_name="Kota Surabaya",
-                         extra={"tipePengiriman": tipe_pengiriman.upper(),
+                         extra={"tipePengiriman": tipe,
                                 "jenisArmadaId": ja, "jumlahArmada": 1})
-    o = t.buat_order(sh["id"], "FTL", pengirim[0]["cityId"], penerima["cityId"],
+    o = t.buat_order(sh["id"], "FTL", pengirim[0]["cityId"],
+                     penerima[0]["cityId"],
                      tanggal_muat, ja, kota_asal_name="Kota Semarang",
                      kota_tujuan_name="Kota Surabaya")
     p = t.buat_penugasan(o["id"], sopir_wa, sopir_wa, ja)
@@ -284,8 +305,8 @@ if __name__ == "__main__":
     import sys
     jenis = (sys.argv[1] if len(sys.argv) > 1 else "ltl").lower()
     tgl = sys.argv[2] if len(sys.argv) > 2 else "2026-08-21T17:00:00.000Z"
-    if jenis == "ftl-multipickup":
-        hasil = seed_ftl(tgl, tipe_pengiriman="MULTIPICKUP")
+    if jenis.startswith("ftl-"):
+        hasil = seed_ftl(tgl, tipe_pengiriman=jenis.split("-", 1)[1].upper())
     else:
         hasil = {"ltl": seed_ltl, "ftl": seed_ftl}[jenis](tgl)
     print(json.dumps(hasil, ensure_ascii=False, indent=1))

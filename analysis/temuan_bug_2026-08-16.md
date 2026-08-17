@@ -68,6 +68,9 @@ di empty state "Belum ada penugasan". Nol crash/ANR di semua sesi.
   membuka app, dan tidak menemukan apa-apa.
 - **Sesudah tampil, siklusnya normal:** `FTL6942920480` diselesaikan penuh
   6 tahap (muat per titik ×2 + bongkar) tanpa kendala.
+- **Adendum (17 Agu sore):** order MULTIDROP (`FTL6944366042`) tampil
+  SEKETIKA — keterlambatan tidak menimpa semua tipe multi; spesifik
+  MULTIPICKUP atau intermiten. Data point tambahan untuk dev.
 
 ## 4. POST /api/orders tidak mendenormalisasi nama kota (API/UX, MEDIUM)
 - **Ditemukan 17 Agu** saat menyemai order via API (pilot `LTL6933610417`):

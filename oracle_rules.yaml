@@ -52,6 +52,9 @@ implicit:
         # resi divalidasi server terhadap data order — mengetik contoh dari
         # placeholder ditolak (terukur 16 Agu di LKL-LTL5377813262)
         - "^Resi tidak dikenal:"
+        # multidrop: Berangkat Bongkar tanpa memilih alamat tujuan (terukur
+        # 17 Agu di LKL-FTL6944366042)
+        - "^Pilih alamat tujuan terlebih dahulu$"
         - "^Kode tidak sesuai\\. Periksa kembali\\.$"
         - "^Format nomor tidak valid\\. Periksa kembali\\.$"
         - "^Data tidak valid\\. Periksa kembali\\.$"
