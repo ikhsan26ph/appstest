@@ -48,3 +48,15 @@ Perilaku yang DIKONFIRMASI BENAR (bukan bug, tercatat sebagai pengetahuan):
 
 Run 16 Agu (sesi lanjutan) menyelesaikan SELURUH 9 order; Beranda berakhir
 di empty state "Belum ada penugasan". Nol crash/ANR di semua sesi.
+
+## 4. POST /api/orders tidak mendenormalisasi nama kota (API/UX, MEDIUM)
+- **Ditemukan 17 Agu** saat menyemai order via API (pilot `LTL6933610417`):
+  `POST /orders` hanya mewajibkan `kotaAsalId`/`kotaTujuanId`; field
+  `kotaAsalName`/`kotaTujuanName` diterima kosong dan backend TIDAK
+  mengisinya dari ID.
+- **Dampak di app supir:** bagian lokasi kartu penugasan tampil "-" —
+  order sah tapi tidak terbaca rutenya oleh sopir.
+- **Perbaikan sementara:** `PATCH /orders/{id}` dengan kedua nama (berhasil);
+  seeder kini selalu mengirim nama saat create.
+- **Saran produk:** backend sebaiknya menurunkan nama dari ID (satu sumber
+  kebenaran), atau menolak order tanpa nama kota.
