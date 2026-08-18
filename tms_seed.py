@@ -255,6 +255,95 @@ def seed_ltl(tanggal_muat: str, sopir_wa: str = "6283830011881") -> dict:
             "order_id": o["id"], "penugasan": p.get("id"), "resi": resi}
 
 
+def seed_ltl_multi(tanggal_muat: str, sopir_wa: str = "6283830011881",
+                   jumlah_shipment: int = 2) -> dict:
+    """Satu order LTL dari BEBERAPA shipment se-rute (pola nyata staging:
+    LKL-LTL5377813262 = 2 shipment / 3 resi). Kontrak POST /orders memang
+    memuat `shipmentIds` jamak; `shipmentId` tunggal diisi shipment pertama.
+    Di app, tahap berjalan hanya menerima resi shipment gilirannya — loop
+    koreksi selesaikan_order.py yang memilah."""
+    t = TmsSeed()
+    t.login()
+    pengirim = t.pihak_perusahaan("PT. H3 IK")
+    penerima = t.pihak_individu("Alluka Fatimah Rahma", ALAMAT_RUNGKUT)
+    shipments = []
+    for i in range(jumlah_shipment):
+        # shipment pertama 2 barang, sisanya 1 — meniru contoh 2 shipment/3 resi
+        items = [t.barang(f"Kardus QA S{i + 1}A")]
+        if i == 0:
+            items.append(t.barang(f"Kardus QA S{i + 1}B", berat=3))
+        shipments.append(t.buat_shipment(
+            "LTL", [pengirim], [penerima], items,
+            pengirim["cityId"], penerima["cityId"], tanggal_muat,
+            kota_asal_name="Kota Semarang", kota_tujuan_name="Kota Surabaya"))
+    ja = t.jenis_armada("Tronton Wing Box1")
+    res = t._req_method("POST", "/orders", {
+        "serviceType": "LTL",
+        "kotaAsalId": pengirim["cityId"], "kotaTujuanId": penerima["cityId"],
+        "kotaAsalName": "Kota Semarang", "kotaTujuanName": "Kota Surabaya",
+        "tanggalMuat": tanggal_muat,
+        "shipmentId": shipments[0]["id"],
+        "shipmentIds": [s["id"] for s in shipments],
+        "jenisArmadaId": ja,
+    })
+    o = res["data"]
+    p = t.buat_penugasan(o["id"], sopir_wa, sopir_wa, ja)
+    resi = t.resi_untuk(o["orderCode"])
+    return {"shipments": [s["shipmentCode"] for s in shipments],
+            "order": o["orderCode"], "order_id": o["id"],
+            "penugasan": p.get("id"), "resi": resi}
+
+
+def seed_ltl_estafet(tanggal_muat: str, sopir_wa: str = "6283830011881",
+                     reuse_shipment_ids: tuple[str, str] | None = None) -> dict:
+    """Estafet dua leg LTL — S1 Semarang→Surabaya, S2 Surabaya (IK -
+    Kenjeran)→Medan (IK - Medan) — sebagai DUA order ke sopir yang sama.
+
+    KENAPA dua order (terbukti 17 Agu, tiga varian ditolak HTTP 422 "Rute
+    shipment X tidak sesuai dengan rute order"): validator /orders menuntut
+    SEMUA shipment persis se-rute (asal & tujuan) dengan order-nya — order
+    lintas-rute tidak mungkin by design; multi-shipment = konsolidasi se-rute.
+
+    `reuse_shipment_ids`: (id_leg1, id_leg2) untuk memakai shipment DRAFT
+    yang sudah ada alih-alih membuat baru."""
+    t = TmsSeed()
+    t.login()
+    if reuse_shipment_ids:
+        sh1 = t._req(f"/shipments/{reuse_shipment_ids[0]}")["data"]
+        sh2 = t._req(f"/shipments/{reuse_shipment_ids[1]}")["data"]
+    else:
+        smg = t.pihak_perusahaan("PT. H3 IK")
+        sby_alluka = t.pihak_individu("Alluka Fatimah Rahma", ALAMAT_RUNGKUT)
+        sby_kenjeran = t.pihak_perusahaan("PT. H3 IK",
+                                          droppoint_nama="IK - Kenjeran")
+        medan = t.pihak_perusahaan("PT. H3 IK", droppoint_nama="IK - Medan")
+        sh1 = t.buat_shipment("LTL", [smg], [sby_alluka],
+                              [t.barang("Kardus QA leg1-A"),
+                               t.barang("Kardus QA leg1-B", berat=3)],
+                              smg["cityId"], sby_alluka["cityId"], tanggal_muat,
+                              kota_asal_name="Kota Semarang",
+                              kota_tujuan_name="Kota Surabaya")
+        sh2 = t.buat_shipment("LTL", [sby_kenjeran], [medan],
+                              [t.barang("Kardus QA leg2")],
+                              sby_kenjeran["cityId"], medan["cityId"],
+                              tanggal_muat,
+                              kota_asal_name="Kota Surabaya",
+                              kota_tujuan_name="Kota Medan")
+    ja = t.jenis_armada("Tronton Wing Box1")
+    hasil = {"orders": []}
+    for sh, asal, tujuan in ((sh1, "Kota Semarang", "Kota Surabaya"),
+                             (sh2, "Kota Surabaya", "Kota Medan")):
+        o = t.buat_order(sh["id"], "LTL", sh["kotaAsalId"], sh["kotaTujuanId"],
+                         tanggal_muat, ja, kota_asal_name=asal,
+                         kota_tujuan_name=tujuan)
+        p = t.buat_penugasan(o["id"], sopir_wa, sopir_wa, ja)
+        hasil["orders"].append({
+            "shipment": sh["shipmentCode"], "order": o["orderCode"],
+            "order_id": o["id"], "rute": f"{asal} - {tujuan}",
+            "penugasan": p.get("id"), "resi": t.resi_untuk(o["orderCode"])})
+    return hasil
+
+
 def seed_ftl(tanggal_muat: str, sopir_wa: str = "6283830011881",
              tipe_pengiriman: str = "NORMAL") -> dict:
     """Rantai lengkap FTL (NORMAL atau MULTIPICKUP). Beda dari LTL:
@@ -413,5 +502,7 @@ if __name__ == "__main__":
     if jenis.startswith("ftl-"):
         hasil = seed_ftl(tgl, tipe_pengiriman=jenis.split("-", 1)[1].upper())
     else:
-        hasil = {"ltl": seed_ltl, "ftl": seed_ftl, "fcl": seed_fcl}[jenis](tgl)
+        hasil = {"ltl": seed_ltl, "ltl-multi": seed_ltl_multi,
+                 "ltl-estafet": seed_ltl_estafet,
+                 "ftl": seed_ftl, "fcl": seed_fcl}[jenis](tgl)
     print(json.dumps(hasil, ensure_ascii=False, indent=1))

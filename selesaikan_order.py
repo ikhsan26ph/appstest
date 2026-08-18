@@ -50,7 +50,7 @@ BUGLOG = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 ROUTE_RE = re.compile(r"^(Kota|Kabupaten) .+ - (Kota|Kabupaten) .+$")
 ID_RE = re.compile(r"^[A-Z]{2,4}-[A-Z]{2,4}\d{6,}$")
 HEADER_Y = 250
-MAX_PUTARAN = 10
+MAX_PUTARAN = int(os.environ.get("QA_MAX_PUTARAN", "10"))
 
 o = Oracle(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                         "oracle_rules.yaml"))

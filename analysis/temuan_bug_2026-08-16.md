@@ -93,3 +93,17 @@ ASSIGNED di staging.
   seeder kini selalu mengirim nama saat create.
 - **Saran produk:** backend sebaiknya menurunkan nama dari ID (satu sumber
   kebenaran), atau menolak order tanpa nama kota.
+
+## 6. Field "No. Resi" memotong input panjang (~60 karakter) (UI, LOW-MEDIUM — kandidat)
+- **Ditemukan 17 Agu** saat menyelesaikan order relay `LKL-LTL6962804735`
+  (3 shipment / 5 resi, order web ber-`transitKota`): mengetik daftar 5 resi
+  (75 karakter, dipisah koma) lewat Appium `element/value` menyisakan tepat
+  60 karakter pertama — resi ke-5 (`LKL4734281267`) terpotong hilang beserta
+  sebagian pemisah (`…LKL5522645159, `).
+- **Terulang konsisten** di seluruh putaran ber-resi order itu (putaran 2, 4,
+  6, 8, 9, 11) — bukan kegagalan ketik sekali-sekali.
+- **Dampak:** di order konsolidasi/relay yang satu tahapnya menuntut banyak
+  resi (>±4 resi), sopir TIDAK BISA memasukkan semuanya. Run QA selamat hanya
+  karena gerbang per-leg cuma menuntut subset (≤2 resi per leg).
+- **Perlu dicek dev:** apakah `maxLength=60` disengaja di field itu; bila ya,
+  desain form belum mempertimbangkan multi-resi.
