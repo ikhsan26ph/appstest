@@ -107,3 +107,42 @@ ASSIGNED di staging.
   karena gerbang per-leg cuma menuntut subset (≤2 resi per leg).
 - **Perlu dicek dev:** apakah `maxLength=60` disengaja di field itu; bila ya,
   desain form belum mempertimbangkan multi-resi.
+
+## 7. Tahap relay bisa tampil "sukses" padahal belum tersimpan di server (sync, MEDIUM — kandidat, perlu repro bersih)
+- **Ditemukan 31 Agu** menguji fitur baru v2.3.0-stg "Tambah Media" (foto+
+  video, menggantikan "Tambah Foto") di order relay `LKL-LTL8141650996`
+  (leg Surabaya→Medan dari estafet 2-leg). Submit tahap "Selesai Bongkar"
+  (video via galeri + No. Resi) menampilkan toast **"Penugasan selesai.
+  Tersimpan, sedang disinkronkan"**, layar kembali ke Beranda tanpa kartu
+  order — tampak tuntas.
+- **Tapi:** cek `GET /orders` (TMS web API) sesudahnya menunjukkan
+  order masih `status: ONGOING`, shipment masih `IN_TRANSIT` (bukan
+  `COMPLETED`/`DELIVERED`). Refresh Beranda balik memunculkan kartu order
+  itu lagi dengan status "Selesai Bongkar" (form media kosong — lampiran
+  sebelumnya hilang). Submit ULANG (foto, bukan video; No. Resi sama)
+  langsung berhasil — server jadi `COMPLETED`/`DELIVERED`.
+- **logcat (filter PID app) saat retry manual "Sinkronkan":** baris
+  `SyncEngine: prepareManualRetry: FAILED → PENDING, backoff cleared` —
+  ada antrean lokal yang sebelumnya FAILED tanpa toast error ke sopir.
+  Belum jelas apakah antrean `SyncEngine` ini (tampaknya milik modul
+  `tracking`, bukan submit tahap) yang menyebabkan submit tahap ikut hilang,
+  atau dua masalah terpisah yang kebetulan bersamaan.
+- **Kondisi saat kejadian (perancu, catat jujur):** ini order RELAY dengan
+  DUA penugasan aktif sekaligus di satu akun sopir (leg Semarang→Surabaya
+  + leg Surabaya→Medan, seed `ltl-transit`/estafet menugaskan sopir yang
+  sama ke keduanya). Sempat terjadi salah tap "Isi Penugasan" ke kartu yang
+  salah karena dua kartu bertumpuk (button `enabled=false` untuk leg yang
+  BUKAN sedang berjalan — lihat [[tombol-disabled-tetap-clickable]]) sebelum
+  percobaan yang gagal ini. Submission lain di sesi yang sama (LTL Normal,
+  FTL Normal, FTL Multidrop, leg relay lain) SEMUA tervalidasi tuntas benar
+  di server — jadi ini tidak reproduksi konsisten di jalur normal (1 kartu
+  aktif, submit sekali).
+- **Dampak jika nyata:** sopir bisa mengira tahap final tersimpan (toast
+  positif, kartu hilang dari Beranda) padahal order masih ONGOING di
+  server — berpotensi laporan pengiriman telat/tidak terkirim tanpa sopir
+  sadar perlu resubmit.
+- **Perlu dicek dev:** reproduksi bersih dengan SATU order relay aktif
+  (bukan dua leg simultan), submit sekali dengan video, verifikasi
+  `GET /orders` sesudahnya. Kalau perlu, cek apakah upload video (file
+  lebih besar dari foto) yang gagal diam-diam di background sementara
+  form tahap sudah terlanjur menampilkan toast sukses secara optimistic.

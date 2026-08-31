@@ -344,6 +344,53 @@ def seed_ltl_estafet(tanggal_muat: str, sopir_wa: str = "6283830011881",
     return hasil
 
 
+def seed_ltl_transit(tanggal_muat: str,
+                     sopir_wa: str = "6283830011881") -> dict:
+    """Order LTL relay SATU order ber-2 transit (kontrak dipetakan 17 Agu
+    dari order web LTL6962804735): rantai Semarang → Surabaya → Balikpapan
+    → Medan, tiga shipment masing-masing mengisi persis satu leg, dan order
+    mendeklarasikan `transitKota: [{id, name}, …]` BERURUTAN — tanpa itu
+    validator menolak "Rute shipment X tidak sesuai dengan rute order".
+    Resi per leg dijaga ≤2 agar tidak menabrak temuan #6 (field No. Resi
+    terpotong ±60 karakter)."""
+    t = TmsSeed()
+    t.login()
+    smg = t.pihak_perusahaan("PT. H3 IK", droppoint_nama="IK - Semarang Oke")
+    sby = t.pihak_perusahaan("PT. H3 IK", droppoint_nama="IK - Kenjeran")
+    bpp = t.pihak_perusahaan("PT. H3 IK", droppoint_nama="IK - Balikpapan")
+    mdn = t.pihak_perusahaan("PT. H3 IK", droppoint_nama="IK - Medan")
+    legs = [
+        (smg, sby, "Kota Semarang", "Kota Surabaya",
+         [t.barang("Kardus QA T1-A"), t.barang("Kardus QA T1-B", berat=3)]),
+        (sby, bpp, "Kota Surabaya", "Kota Balikpapan",
+         [t.barang("Kardus QA T2")]),
+        (bpp, mdn, "Kota Balikpapan", "Kota Medan",
+         [t.barang("Kardus QA T3")]),
+    ]
+    shipments = [
+        t.buat_shipment("LTL", [asal], [tujuan], items,
+                        asal["cityId"], tujuan["cityId"], tanggal_muat,
+                        kota_asal_name=nama_asal, kota_tujuan_name=nama_tujuan)
+        for asal, tujuan, nama_asal, nama_tujuan, items in legs]
+    ja = t.jenis_armada("Tronton Wing Box1")
+    res = t._req_method("POST", "/orders", {
+        "serviceType": "LTL",
+        "kotaAsalId": smg["cityId"], "kotaTujuanId": mdn["cityId"],
+        "kotaAsalName": "Kota Semarang", "kotaTujuanName": "Kota Medan",
+        "transitKota": [{"id": sby["cityId"], "name": "Kota Surabaya"},
+                        {"id": bpp["cityId"], "name": "Kota Balikpapan"}],
+        "tanggalMuat": tanggal_muat,
+        "shipmentId": shipments[0]["id"],
+        "shipmentIds": [s["id"] for s in shipments],
+        "jenisArmadaId": ja,
+    })
+    o = res["data"]
+    p = t.buat_penugasan(o["id"], sopir_wa, sopir_wa, ja)
+    return {"shipments": [s["shipmentCode"] for s in shipments],
+            "order": o["orderCode"], "order_id": o["id"],
+            "penugasan": p.get("id"), "resi": t.resi_untuk(o["orderCode"])}
+
+
 def seed_ftl(tanggal_muat: str, sopir_wa: str = "6283830011881",
              tipe_pengiriman: str = "NORMAL") -> dict:
     """Rantai lengkap FTL (NORMAL atau MULTIPICKUP). Beda dari LTL:
@@ -504,5 +551,6 @@ if __name__ == "__main__":
     else:
         hasil = {"ltl": seed_ltl, "ltl-multi": seed_ltl_multi,
                  "ltl-estafet": seed_ltl_estafet,
+                 "ltl-transit": seed_ltl_transit,
                  "ftl": seed_ftl, "fcl": seed_fcl}[jenis](tgl)
     print(json.dumps(hasil, ensure_ascii=False, indent=1))
