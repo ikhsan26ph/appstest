@@ -36,10 +36,7 @@ try:
 except ImportError:
     sys.exit("Missing Appium client. Install: pip install Appium-Python-Client")
 
-try:
-    import anthropic
-except ImportError:
-    sys.exit("Missing anthropic SDK. Install: pip install anthropic")
+import subprocess
 
 APPIUM_URL = os.environ.get("APPIUM_URL", "http://127.0.0.1:4723")
 MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5")
@@ -77,6 +74,8 @@ def build_driver(args):
     opts.automation_name = "UiAutomator2"
     opts.new_command_timeout = 300
     opts.auto_grant_permissions = True  # grant runtime perms to reduce noise
+    opts.set_capability("appium:noReset", True)          # jangan hapus data/session login
+    opts.set_capability("appium:dontStopAppOnReset", True)  # jangan stop app dulu
     # Default Appium (20s) terlalu mepet: install uiautomator2-server (~16 MB)
     # makan ~17s di HP fisik, jadi sesi pertama sering gagal "adbExec timed out".
     opts.set_capability("appium:uiautomator2ServerInstallTimeout", 120000)
@@ -105,19 +104,51 @@ def ask_claude(client, goal, elements, history):
         parts.append(f"({kind})")
         lines.append(" ".join(parts))
     listing = "\n".join(lines) or "(no interactable elements found)"
-    recent = "\n".join(history[-8:]) or "(none yet)"
-    user = (
+    recent = "\n".join(history[-5:]) or "(none yet)"
+    prompt = (
+        f"{SYSTEM_PROMPT}\n\n"
         f"GOAL: {goal}\n\nRECENT ACTIONS:\n{recent}\n\n"
         f"INTERACTABLE ELEMENTS:\n{listing}\n\n"
         "Pick the next action as JSON."
     )
-    msg = client.messages.create(
-        model=MODEL, max_tokens=300,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user}],
-    )
-    raw = "".join(b.text for b in msg.content if b.type == "text").strip()
-    raw = re.sub(r"^```(json)?|```$", "", raw, flags=re.M).strip()
+    # Tulis prompt ke file temp — lebih andal daripada pass via -p argumen
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        f.write(prompt)
+        prompt_file = f.name
+    raw = ""
+    for attempt in range(3):
+        result = subprocess.run(
+            ["claude", "-p", open(prompt_file).read(),
+             "--max-turns", "3", "--dangerously-skip-permissions",
+             "--output-format", "text"],
+            capture_output=True, text=True, timeout=60,
+        )
+        # Cari baris JSON valid dari seluruh output (bisa ada warning sebelumnya)
+        full_out = result.stdout + result.stderr
+        # Coba parse keseluruhan output dulu (JSON mungkin multi-baris)
+        for line in full_out.splitlines():
+            line = line.strip()
+            line = re.sub(r"^```(json)?\s*|\s*```$", "", line).strip()
+            if line.startswith("{"):
+                try:
+                    json.loads(line)
+                    raw = line
+                    break
+                except json.JSONDecodeError:
+                    # JSON tidak valid di baris ini, coba cari { ... } yang valid
+                    m = re.search(r'\{.*"action"\s*:\s*"(?:tap|input|back|scroll|stop)".*\}', line)
+                    if m:
+                        try:
+                            json.loads(m.group())
+                            raw = m.group()
+                            break
+                        except Exception:
+                            pass
+        if raw:
+            break
+        time.sleep(1)
+    os.unlink(prompt_file)
     return json.loads(raw)
 
 
@@ -179,10 +210,8 @@ def main():
 
     if not args.apk and not args.package:
         sys.exit("Wajib salah satu: --apk atau --package")
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        sys.exit("Set ANTHROPIC_API_KEY dulu.")
 
-    client = anthropic.Anthropic()
+    client = None  # pakai claude CLI, tidak butuh API key
     print(f"[*] Menyambung Appium di {APPIUM_URL} (model: {MODEL})")
     driver = build_driver(args)
     report = {
@@ -196,8 +225,13 @@ def main():
     try:
         for step in range(1, args.max_steps + 1):
             time.sleep(0.5)  # observe() sudah menunggu ~3s setelah aksi sebelumnya
+            # Retry sekali jika elemen belum render (sering terjadi di step pertama)
             page = driver.page_source
             elements = parse_elements(page)
+            if not elements and step == 1:
+                time.sleep(3)
+                page = driver.page_source
+                elements = parse_elements(page)
             fingerprint = hash(tuple(sorted(e["text"] + e["id"] for e in elements)))
             seen_screens.add(fingerprint)
 

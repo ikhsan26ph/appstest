@@ -1,0 +1,52 @@
+{
+  "goal": "Login: isi nomor WA 083830011881, tap Masuk, isi kode akses 373686, tap konfirmasi. Setelah masuk, jelajahi beranda, penugasan, profil, notifikasi. Jangan logout.",
+  "model": "claude-sonnet-5",
+  "started": "2026-09-21T12:04:08.806861",
+  "steps": [
+    {
+      "step": 1,
+      "action": {
+        "reasoning": "Layar hanya menampilkan modal Autostart; ikuti resep: buka pengaturan dulu sebelum bisa lanjut ke form login.",
+        "action": "tap",
+        "target": 0
+      },
+      "result": "tap \"Buka Pengaturan\"",
+      "n_elements": 1,
+      "transient_messages": [
+        "0.1%",
+        "1 h 27 m until full",
+        "82%",
+        "Background usage limits",
+        "Battery",
+        "Battery protection",
+        "Battery usage: 5 %",
+        "Daily usage",
+        "Google Play services",
+        "Navigate up",
+        "Power saving",
+        "This week",
+        "USB connected",
+        "View details"
+      ]
+    }
+  ],
+  "crashes": [],
+  "messages": [
+    "0.1%",
+    "1 h 27 m until full",
+    "82%",
+    "Background usage limits",
+    "Battery",
+    "Battery protection",
+    "Battery usage: 5 %",
+    "Daily usage",
+    "Google Play services",
+    "Navigate up",
+    "Power saving",
+    "This week",
+    "USB connected",
+    "View details"
+  ],
+  "screens_seen": 2,
+  "ended": "2026-09-21T12:05:21.966645"
+}
