@@ -48,7 +48,7 @@ os.makedirs(EVID, exist_ok=True)
 BUGLOG = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                       "analysis", "temuan_bug_2026-08-16.md")
 ROUTE_RE = re.compile(r"^(Kota|Kabupaten) .+ - (Kota|Kabupaten) .+$")
-ID_RE = re.compile(r"^[A-Z]{2,4}-[A-Z]{2,4}\d{6,}$")
+ID_RE = re.compile(r"^[A-Z]{2,4}-([A-Z]{2,4}\d{6,}|\d{8}-\d+)$")
 HEADER_Y = 250
 MAX_PUTARAN = int(os.environ.get("QA_MAX_PUTARAN", "10"))
 
@@ -195,16 +195,23 @@ def cari_kartu():
     return "buntu", None
 
 
+def _tombol_media(els):
+    """v2.3.0 mengganti "Tambah Foto" jadi "Tambah Media" (foto+video)."""
+    for label in ("Tambah Media", "Tambah Foto", "Add Photo"):
+        b = uitree.find_tappable(els, label)
+        if b:
+            return b
+    return None
+
+
 def lampirkan_foto():
     els = uitree.parse_elements(io.source())
-    foto = uitree.find_tappable(els, "Tambah Foto") or \
-        uitree.find_tappable(els, "Add Photo")
+    foto = _tombol_media(els)
     if foto is None:
         for arah in (-1200, 700, 700, 700):
             swipe(arah)
             els = uitree.parse_elements(io.source())
-            foto = uitree.find_tappable(els, "Tambah Foto") or \
-                uitree.find_tappable(els, "Add Photo")
+            foto = _tombol_media(els)
             if foto:
                 break
     if foto is None:
@@ -294,7 +301,7 @@ for putaran in range(1, MAX_PUTARAN + 1):
     tutup_modal()
     texts_awal = uitree.all_texts(io.source())
     if "Beranda" not in texts_awal:
-        if "Detail Tracking" in texts_awal:
+        if ("Detail Tracking" in texts_awal or "Detail Pengiriman" in texts_awal):
             print("   (masih di Detail Tracking — Back ke Beranda)")
             io.back(); time.sleep(1.5)
         else:
@@ -325,7 +332,7 @@ for putaran in range(1, MAX_PUTARAN + 1):
     tutup_modal()
 
     texts = uitree.all_texts(io.source())
-    if "Detail Tracking" not in texts:
+    if not ({"Detail Tracking", "Detail Pengiriman"} & set(texts)):
         print("!! bukan Detail Tracking; teks:", sorted(texts)[:10])
         screenshot(f"nyasar_{TARGET_ID}_{putaran}.png")
         break
@@ -338,6 +345,8 @@ for putaran in range(1, MAX_PUTARAN + 1):
         if id_form:
             break
         time.sleep(1.5)
+    if TARGET_ID == "AUTO" and id_form:
+        TARGET_ID = id_form  # mode AUTO: percaya rute+tanggal, ID dibaca dari form
     if id_form != TARGET_ID:
         print(f"!! ID di form {id_form!r} ≠ {TARGET_ID} — BATAL, mundur")
         screenshot(f"salah_kartu_{TARGET_ID}_{putaran}.png")
@@ -442,7 +451,7 @@ for putaran in range(1, MAX_PUTARAN + 1):
         break
     screenshot(f"putaran_{TARGET_ID}_{putaran}.png")
 
-    if "Detail Tracking" in uitree.all_texts(io.source()):
+    if {"Detail Tracking", "Detail Pengiriman"} & set(uitree.all_texts(io.source())):
         print("!! layar tidak beranjak sesudah aksi — tahap menolak; berhenti")
         print("   teks terlihat:", sorted(uitree.all_texts(io.source()))[:14])
         screenshot(f"menolak_{TARGET_ID}_{putaran}.png")
